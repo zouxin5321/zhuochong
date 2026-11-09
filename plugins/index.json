@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-09",
+  "comment": "插件市场索引。提交 PR 新增条目；download 指向 Release 里的插件 zip，sha256 为该 zip 的哈希。",
+  "plugins": [
+    {
+      "id": "builtin-default",
+      "name": "小卓",
+      "version": "1.0.0",
+      "author": "zhuochong",
+      "description": "内置示例角色：会呼吸、会眨眼，点一下会跳起来",
+      "license": "CC0-1.0",
+      "builtin": true,
+      "download": "",
+      "sha256": ""
+    }
+  ]
+}

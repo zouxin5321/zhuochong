@@ -1,0 +1,22 @@
+{
+  "id": "hello-pet",
+  "name": "示例角色",
+  "version": "0.1.0",
+  "author": "your-name",
+  "description": "插件模板：把 spritesheet.png 换成自己的图就能用",
+  "license": "CC0-1.0",
+  "minHost": "0.1.0",
+  "scale": 2,
+  "defaultAction": "idle",
+  "sprite": {
+    "file": "spritesheet.png",
+    "cellWidth": 64,
+    "cellHeight": 64,
+    "columns": 8,
+    "rows": 3
+  },
+  "actions": {
+    "idle": { "row": 0, "frames": 4, "fps": 4, "loop": true },
+    "happy": { "row": 1, "frames": 4, "fps": 8, "loop": false, "next": "idle" }
+  }
+}

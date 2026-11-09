@@ -1,0 +1,26 @@
+{
+  "name": "zhuochong",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "卓宠 · 桌面宠物平台（Tauri 2，资源包插件）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "icons": "tauri icon assets/app-icon.png",
+    "sprites": "node scripts/gen-sprites.mjs",
+    "verify:web": "node scripts/domcheck-web.mjs",
+    "verify:app": "node scripts/domcheck-app.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0",
+    "sharp": "^0.34.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  }
+}
