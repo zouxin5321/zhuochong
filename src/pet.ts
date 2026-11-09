@@ -136,7 +136,9 @@ export class Pet {
     const sy = row * sprite.cellHeight
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
-    this.ctx.imageSmoothingEnabled = false
+    // 帧表是矢量栅格化的卡通渐变风格（非像素风），缩放用平滑采样避免锯齿
+    this.ctx.imageSmoothingEnabled = true
+    this.ctx.imageSmoothingQuality = 'high'
     this.ctx.drawImage(
       this.img,
       sx,

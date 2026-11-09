@@ -1,17 +1,17 @@
 {
   "id": "orange-tabby",
   "name": "小橘",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "zhuochong",
-  "description": "橘猫，贪吃但灵活，爱蠕动着讨摸",
+  "description": "瘦高的橘虎斑，大耳朵长尾巴，爱蠕动着讨摸",
   "license": "CC0-1.0",
   "minHost": "0.1.0",
-  "scale": 2,
+  "scale": 1.2,
   "defaultAction": "idle",
   "sprite": {
     "file": "spritesheet.png",
-    "cellWidth": 64,
-    "cellHeight": 64,
+    "cellWidth": 128,
+    "cellHeight": 128,
     "columns": 8,
     "rows": 10
   },

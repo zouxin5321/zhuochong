@@ -38,8 +38,8 @@
   "defaultAction": "idle",
   "sprite": {
     "file": "spritesheet.png",
-    "cellWidth": 64,
-    "cellHeight": 64,
+    "cellWidth": 128,
+    "cellHeight": 128,
     "columns": 8,
     "rows": 3
   },
@@ -60,7 +60,7 @@
 | `version` | ✅ | 语义化版本 |
 | `author` / `description` / `license` | — | 市场索引展示用 |
 | `minHost` | — | 宿主最低版本；不满足时宿主提示「插件需要更新宿主」 |
-| `scale` | — | 相对精灵像素的整数缩放，默认 1（64px 角色配 2 → 128px 显示） |
+| `scale` | — | 显示缩放倍数，支持小数，默认 1（128px 帧格配 1.2 → 约 154px 显示） |
 | `defaultAction` | — | 默认动作，缺省取 `actions` 的第一个 |
 | `sprite` | ✅ | 帧表几何信息 |
 | `actions` | ✅ | 动作表，至少一个 |
