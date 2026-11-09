@@ -160,6 +160,19 @@ const PALETTES = {
     outline: '#4e3a28',
     accent: '#ffb066',
     pattern: 'patches'
+  },
+  /** 机甲龙猫：深钢外壳 + 熔岩橙能量纹，靠高对比发光在小尺寸下抓住视线 */
+  mecha: {
+    light: '#6f8bb0',
+    body: '#2c3648',
+    dark: '#131a26',
+    shadow: '#05080d',
+    belly: '#c8d6e8',
+    blush: '#ff8a5c',
+    outline: '#04070c',
+    accent: '#ff8f52',
+    glow: '#ffb266',
+    pattern: 'armor'
   }
 }
 
@@ -315,13 +328,71 @@ const BREEDS = {
     wavePaw: [46.5, 36.2],
     belly:
       'M24.5 45 C26.5 50 30 52.2 32 52.2 C34 52.2 37.5 50 39.5 45 C35.5 48.2 28.5 48.2 24.5 45 Z'
+  },
+
+  /**
+   * 机甲龙猫：Q 版圆身 + 硬核武装。
+   * 反差萌的关键是「比例还是幼体」——大头短腿圆脸，但披甲、长角、尾巴带节段。
+   */
+  mecha: {
+    body: 'M32 15 C42.5 15 48.6 20.2 50.4 28.4 C51.8 34 51 40 48.8 45 C46.6 50.6 40.4 54.6 32 54.6 C23.6 54.6 17.4 50.6 15.2 45 C13 40 12.2 34 13.6 28.4 C15.4 20.2 21.5 15 32 15 Z',
+    earUp: [
+      'M19.4 25.6 L17.6 16 L27.6 22 Z',
+      'M44.6 25.6 L46.4 16 L36.4 22 Z'
+    ],
+    earBack: [
+      'M19.6 26.4 C17.8 23.4 17.4 20.4 18.8 19.4 C21.6 21 24.4 22.8 26.6 24.2 Z',
+      'M44.4 26.4 C46.2 23.4 46.6 20.4 45.2 19.4 C42.4 21 39.6 22.8 37.4 24.2 Z'
+    ],
+    earInner: [
+      'M20.6 23.4 L19.6 18.4 L24.8 21.4 Z',
+      'M43.4 23.4 L44.4 18.4 L39.2 21.4 Z'
+    ],
+    // 龙角：从耳后向外上方弯出，末端回收，和耳朵明显区分
+    horns: [
+      'M22.4 22.6 C15.6 19.6 13 11.4 17.2 6.4 C17.6 12 20.6 16.8 26 20.2 Z',
+      'M41.6 22.6 C48.4 19.6 51 11.4 46.8 6.4 C46.4 12 43.4 16.8 38 20.2 Z'
+    ],
+    armor:
+      'M25 40.4 C28.2 38.6 35.8 38.6 39 40.4 L37.4 49.2 C34.4 51.2 29.6 51.2 26.6 49.2 Z',
+    glowPath: 'M32 41.6 L29.6 46.4 L32 45.6 L30.4 50.6',
+    tail: 'M46.6 46 C55 45.6 58 37.8 54.4 31',
+    tailWidth: 3.4,
+    tailStyle: 'segmented',
+    eyeY: 32.8,
+    eyeSpread: 6.6,
+    noseY: 36.8,
+    mouthY: 38.9,
+    blushY: 37.8,
+    blushX: 11.4,
+    whiskerY: 38,
+    paws: [
+      [27, 51.4],
+      [37, 51.4]
+    ],
+    legs: [23, 41],
+    legY: 53.4,
+    wavePaw: [46.6, 35.4],
+    eyeStyle: 'glow',
+    bellyOpacity: 0.4,
+    whiskerLight: true,
+    belly: 'M27.6 48.6 C29.4 50.6 34.6 50.6 36.4 48.6 C33.8 49.6 30.2 49.6 27.6 48.6 Z'
   }
 }
 
 /** 眼睛：open / wide / blink / happy / sleep / dizzy；坐标由体型的 eyeY / eyeSpread 决定 */
-function eyesSvg(style, y, spread) {
+function eyesSvg(style, y, spread, P) {
   const lx = 32 - spread
   const rx = 32 + spread
+  // 机甲体型：竖瞳 + 外发光，在深色外壳上才立得住
+  if (P.eyeStyle === 'glow' && style === 'open') {
+    const one = (cx) => `
+      <circle cx="${cx}" cy="${y}" r="4" fill="${P.glow}" opacity="0.16"/>
+      <ellipse cx="${cx}" cy="${y}" rx="2.8" ry="3.5" fill="#070c14"/>
+      <ellipse cx="${cx}" cy="${y}" rx="1.05" ry="2.6" fill="${P.glow}"/>
+      <ellipse cx="${cx}" cy="${y - 0.4}" rx="0.42" ry="1.5" fill="#fff6e8"/>`
+    return one(lx) + one(rx)
+  }
   switch (style) {
     case 'blink':
       return `<path d="M${lx - 3} ${y + 0.1} Q${lx} ${y + 1.9} ${lx + 3} ${y + 0.1}" stroke="${INK}" stroke-width="1.9" fill="none" stroke-linecap="round"/>
@@ -350,6 +421,15 @@ function eyesSvg(style, y, spread) {
 
 /** 花纹：叠加在躯干上的装饰，画在 bodyClip 里所以不会溢出轮廓 */
 function patternSvg(kind, P) {
+  if (kind === 'armor') {
+    // 鳞甲：三排交错弧线，压得很淡，只做材质暗示，不抢脸的注意力
+    return `<g stroke="${P.light}" stroke-width="0.7" fill="none" opacity="0.30">
+      <path d="M20 26 Q24 28 28 26 M28 26 Q32 28 36 26 M36 26 Q40 28 44 26"/>
+      <path d="M18 31 Q22 33 26 31 M26 31 Q30 33 34 31 M34 31 Q38 33 42 31 M42 31 Q45 32.6 47 31.4"/>
+      <path d="M17 36.5 Q21 38.5 25 36.5 M25 36.5 Q29 38.5 33 36.5 M33 36.5 Q37 38.5 41 36.5"/>
+      <path d="M18 42 Q22 44 26 42 M26 42 Q30 44 34 42 M34 42 Q38 44 42 42"/>
+    </g>`
+  }
   if (kind === 'stripes') {
     return `<g stroke="${P.dark}" stroke-width="2.1" stroke-linecap="round" fill="none" opacity="0.75">
       <path d="M27.5 19.5 Q32 22.8 36.5 19.5"/>
@@ -427,6 +507,16 @@ function defsSvg(P, B) {
       <stop offset="0.55" stop-color="#04101d" stop-opacity="0.16"/>
       <stop offset="1" stop-color="#04101d" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="hornG" x1="0" y1="1" x2="0.7" y2="0">
+      <stop offset="0" stop-color="#8a6428"/>
+      <stop offset="0.45" stop-color="#e6bd74"/>
+      <stop offset="1" stop-color="#fff3d0"/>
+    </linearGradient>
+    <linearGradient id="steelG" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="${P.light}"/>
+      <stop offset="0.4" stop-color="${P.body}"/>
+      <stop offset="1" stop-color="${P.dark}"/>
+    </linearGradient>
     <clipPath id="bodyClip"><path d="${B.body}"/></clipPath>
   </defs>`
 }
@@ -448,6 +538,20 @@ function tailSvg(B, P, angle) {
       <path d="${B.tail}" stroke="${P.body}" stroke-width="${B.tailWidth}" fill="none" stroke-linecap="round"/>
       <path d="${B.tail}" stroke="${P.dark}" stroke-width="${B.tailWidth}" fill="none" stroke-linecap="round"
             stroke-dasharray="0.9 3.4" opacity="0.85"/>
+    </g>`
+  }
+  if (B.tailStyle === 'segmented') {
+    // 机械节段：粗底 + 深色切缝，末端一颗能量灯
+    return `${t}
+      <path d="${B.tail}" stroke="${P.outline}" stroke-width="${B.tailWidth + 1.6}" fill="none" stroke-linecap="round"/>
+      <path d="${B.tail}" stroke="url(#steelG)" stroke-width="${B.tailWidth}" fill="none" stroke-linecap="round"/>
+      <path d="${B.tail}" stroke="${P.outline}" stroke-width="${B.tailWidth}" fill="none" stroke-linecap="round"
+            stroke-dasharray="0.8 2.6" opacity="0.9"/>
+      <path d="${B.tail}" stroke="${P.glow}" stroke-width="${B.tailWidth * 0.5}" fill="none" stroke-linecap="round"
+            stroke-dasharray="0.7 2.7" opacity="0.85"/>
+      <circle cx="54.2" cy="31.4" r="2.2" fill="${P.glow}" opacity="0.22"/>
+      <circle cx="54.2" cy="31.4" r="1.15" fill="${P.glow}"/>
+      <circle cx="54.2" cy="31.4" r="0.5" fill="#fff6e8"/>
     </g>`
   }
   return `${t}
@@ -502,6 +606,32 @@ function catSvg(o, P, B) {
   const shadowScale = Math.max(0.52, 1 + dy * 0.045)
   const shadowAlpha = Math.max(0.25, 1 + dy * 0.06)
 
+  // 龙角：画在耳朵之前（角在耳后），金色渐变 + 深色描边
+  const hornsEl = B.horns
+    ? B.horns
+        .map(
+          (d) =>
+            `<path d="${d}" fill="url(#hornG)" stroke="${P.outline}" stroke-width="1.2" stroke-linejoin="round"/>`
+        )
+        .join('')
+    : ''
+
+  // 胸甲 + 能量纹：装甲盖住腹部，能量纹用三层描边模拟发光
+  const armorEl = B.armor
+    ? `<path d="${B.armor}" fill="url(#steelG)" stroke="${P.outline}" stroke-width="1.2" stroke-linejoin="round"/>
+       <path d="${B.armor}" fill="none" stroke="${P.light}" stroke-width="0.6" opacity="0.5"
+             transform="translate(0 -0.55)"/>
+       <path d="M28.6 41.6 L35.4 41.6" stroke="${P.outline}" stroke-width="0.7" opacity="0.5"/>`
+    : ''
+
+  const glowEl = B.glowPath
+    ? `<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+         <path d="${B.glowPath}" stroke="${P.glow}" stroke-width="4.2" opacity="0.18"/>
+         <path d="${B.glowPath}" stroke="${P.glow}" stroke-width="2.1" opacity="0.55"/>
+         <path d="${B.glowPath}" stroke="#fff3dc" stroke-width="0.85"/>
+       </g>`
+    : ''
+
   const earsEl = (earBack ? B.earBack : B.earUp)
     .map(
       (d, i) =>
@@ -550,22 +680,26 @@ function catSvg(o, P, B) {
            fill="url(#shadowG)" opacity="${shadowAlpha}"/>
   <g transform="translate(32 ${34 + dy}) rotate(${rotate}) scale(${sxw} ${sy}) translate(-32 -34)">
     ${tailSvg(B, P, tail)}
+    ${hornsEl}
     ${earsEl}
     ${torsoSvg(B, P)}
     <g clip-path="url(#bodyClip)">
       ${patternSvg(P.pattern, P)}
-      <path d="${B.belly}" fill="${P.belly}" opacity="0.85"/>
+      <path d="${B.belly}" fill="${P.belly}" opacity="${B.bellyOpacity ?? 0.85}"/>
+      ${armorEl}
+      ${glowEl}
     </g>
     ${legsEl}
     ${pawEl}
     ${cheekEl}
-    ${eyesSvg(eyes, B.eyeY, B.eyeSpread)}
+    ${eyesSvg(eyes, B.eyeY, B.eyeSpread, P)}
     <path d="M${32 - 1.4} ${B.noseY} L${32 + 1.4} ${B.noseY} L32 ${B.noseY + 1.6} Z" fill="${P.blush}"/>
     <path d="M${32 - 1.6} ${B.mouthY} Q32 ${B.mouthY + 1.4} ${32 + 1.6} ${B.mouthY}"
           stroke="${INK}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
     <ellipse cx="${32 - B.blushX}" cy="${B.blushY}" rx="3" ry="1.8" fill="${P.blush}" opacity="0.45"/>
     <ellipse cx="${32 + B.blushX}" cy="${B.blushY}" rx="3" ry="1.8" fill="${P.blush}" opacity="0.45"/>
-    <g stroke="${P.outline}" stroke-width="1.1" opacity="0.72" stroke-linecap="round">
+    <g stroke="${B.whiskerLight ? P.light : P.outline}" stroke-width="1.1"
+       opacity="${B.whiskerLight ? 0.5 : 0.72}" stroke-linecap="round">
       <path d="M${32 - 13.4} ${B.whiskerY} L${32 - 20.2} ${B.whiskerY - 1.4}"/>
       <path d="M${32 - 13.2} ${B.whiskerY + 2.4} L${32 - 20} ${B.whiskerY + 3.8}"/>
       <path d="M${32 + 13.4} ${B.whiskerY} L${32 + 20.2} ${B.whiskerY - 1.4}"/>
@@ -619,6 +753,15 @@ const CHARACTERS = [
     breed: 'calico',
     scale: 1.2,
     description: '蓬松长毛的三花，折耳朵大尾巴，慢吞吞地爬'
+  },
+  {
+    id: 'mecha-dragon',
+    dir: 'plugins/mecha-dragon',
+    name: '焰甲',
+    palette: 'mecha',
+    breed: 'mecha',
+    scale: 1.2,
+    description: '机甲龙猫，龙角胸甲与熔岩能量纹，看着凶其实很黏人'
   }
 ]
 
