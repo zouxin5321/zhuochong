@@ -106,6 +106,27 @@ const clicked = await evalJs(`(() => {
 check('单击触发互动不报错', clicked === 'OK')
 await sleep(700)
 
+// ---------- 行为层（浏览器预览同样注册了 __zhuochong） ----------
+const actions = await evalJs(`window.__zhuochong ? window.__zhuochong.actions() : null`)
+check('内置角色动作表齐全（>=10 个）', Array.isArray(actions) && actions.length >= 10,
+  Array.isArray(actions) ? actions.join('/') : String(actions))
+
+const clickAction = await evalJs(`(() => {
+  document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
+})()`)
+check('单击命中点击动作池', ['jump', 'roll', 'spin', 'wiggle', 'wave', 'crawl'].includes(clickAction), `action=${clickAction}`)
+
+// 等 1.7s 清空连点窗口（1600ms），否则前面的点击会计入双击判定
+await sleep(1700)
+const spinAction = await evalJs(`(() => {
+  const c = document.querySelector('#pet');
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
+})()`)
+check('双击触发转圈圈', spinAction === 'spin', `action=${spinAction}`)
+
 check('无控制台错误', consoleErrors.length === 0, consoleErrors.join(' | ').slice(0, 200))
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`)

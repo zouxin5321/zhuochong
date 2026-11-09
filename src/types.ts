@@ -31,6 +31,29 @@ export interface Manifest {
   defaultAction?: string
   sprite: SpriteSpec
   actions: Record<string, ActionSpec>
+  /** 行为池（可选；缺省时宿主用内置默认值，老插件无需修改） */
+  behavior?: BehaviorConfig
+}
+
+/**
+ * 行为配置：告诉宿主「哪些动作属于哪类事件」。
+ * 宿主负责计时与判定（连点、发呆、睡眠），插件只声明动作名。
+ */
+export interface BehaviorConfig {
+  /** 单击时随机播放的动作池 */
+  click?: string[]
+  /** 发呆时自言自语式播放的动作池 */
+  ambient?: string[]
+  /** 双击触发的动作（如转圈圈） */
+  doubleClick?: string
+  /** 连点 N 次触发的动作（如头晕） */
+  combo?: { count: number; windowMs: number; action: string }
+  /** 无交互多久后睡觉 */
+  sleep?: { afterMs: number; action: string }
+  /** 被拖拽（拎起来）时循环播放的动作 */
+  drag?: string
+  /** 从睡眠/拖拽恢复时播放的动作 */
+  wake?: string
 }
 
 export interface PluginInfo {

@@ -90,11 +90,46 @@
 | 动作 | 触发时机 |
 | --- | --- |
 | `idle` | 待机（必需，作为兜底） |
-| `happy` | 单击角色 |
-| `drag` | 拖动中 |
-| `sleep` | 长时间无交互（路线图） |
+| `jump` | 单击角色（click 池默认项） |
+| `happy` | 单击角色 / 唤醒 |
+| `roll` | 单击池 / 发呆池：翻滚 |
+| `spin` | 双击 / 发呆池：转圈圈 |
+| `crawl` | 单击池 / 发呆池：爬行 |
+| `wiggle` | 单击池 / 发呆池：蠕动 |
+| `wave` | 单击池：打招呼 |
+| `dizzy` | 连点 4 次：头晕 |
+| `sleep` | 长时间无交互：睡觉（循环） |
+| `drag` | 被拖拽（拎起来）时（循环） |
 
 未定义的动作会被静默忽略，不会报错——插件只提供 `idle` 也能正常运行。
+
+### behavior（可选）
+
+声明「哪些动作属于哪类事件」。缺省任何一项都回落到宿主默认值：
+
+```json
+"behavior": {
+  "click":      ["jump", "roll", "spin", "wiggle", "wave", "crawl"],
+  "ambient":    ["crawl", "wiggle", "spin"],
+  "doubleClick": "spin",
+  "combo":      { "count": 4, "windowMs": 1600, "action": "dizzy" },
+  "sleep":      { "afterMs": 120000, "action": "sleep" },
+  "drag":       "drag",
+  "wake":       "jump"
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `click` | 单击时随机播放的动作池（自动避开连续重复） |
+| `ambient` | 安静 9 秒后随机「自言自语」的动作池 |
+| `doubleClick` | 320ms 内连点两次触发 |
+| `combo` | `windowMs` 内点满 `count` 次触发 `action` |
+| `sleep` | 无交互超过 `afterMs` 后进入循环动作 |
+| `drag` | 拖拽期间循环播放 |
+| `wake` | 睡醒 / 拖拽松手时播放 |
+
+宿主负责全部计时与判定，插件永远只是「被叫去做动作」，不需要声明任何行为逻辑。
 
 ## 3. 校验与失败行为
 

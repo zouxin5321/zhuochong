@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Pet } from './pet'
+import { Behavior } from './behavior'
 import type { AppConfig, PluginInfo } from './types'
 
 const canvasEl = document.querySelector<HTMLCanvasElement>('#pet')
@@ -14,6 +15,8 @@ const hint: HTMLDivElement = hintEl
 const isTauri = '__TAURI_INTERNALS__' in window
 
 let pet: Pet | null = null
+let behavior: Behavior | null = null
+let current: PluginInfo | null = null
 let hideTimer: number | undefined
 
 async function resizeWindow(width: number, height: number): Promise<void> {
@@ -54,11 +57,16 @@ async function spriteOf(plugin: PluginInfo): Promise<string> {
 }
 
 async function mount(plugin: PluginInfo): Promise<void> {
+  behavior?.stop()
   pet?.destroy()
+
   pet = new Pet(canvas, plugin.manifest)
   await pet.load(await spriteOf(plugin))
+  behavior = new Behavior(pet, plugin.manifest.behavior)
+  behavior.start()
   await resizeWindow(pet.width, pet.height)
 
+  current = plugin
   if (isTauri) {
     const cfg = await invoke<AppConfig>('get_config')
     await invoke('set_config', { config: { ...cfg, activePlugin: plugin.id } })
@@ -77,15 +85,20 @@ async function boot(): Promise<void> {
   if (index < 0) index = 0
   await mount(plugins[index])
 
-  // 左键拖动窗口；单击互动；右键换下一个角色
-  // 拖动结束系统也会补一个 click，用「窗口位置是否变过」区分拖动与点击，
-  // 否则每次挪动角色都会触发一次跳跃。
+  // ---------- 交互 ----------
+  // 拖拽联动：按下后窗口真的移动了才算「被拎起来」（切 drag 动作），
+  // 松手播 wake；单纯点击不触发。位移判断同时挡掉拖动结束系统补发的 click。
+  let pointerDown = false
+  let moved = false
   let dragOrigin: { x: number; y: number } | null = null
+  let saveTimer: number | undefined
 
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !isTauri) return
-    const win = getCurrentWindow()
+    pointerDown = true
+    moved = false
     dragOrigin = null
+    const win = getCurrentWindow()
     void win
       .outerPosition()
       .then((p) => {
@@ -95,21 +108,31 @@ async function boot(): Promise<void> {
     void win.startDragging()
   })
 
+  canvas.addEventListener('pointerup', () => {
+    if (moved) behavior?.onDragEnd()
+    pointerDown = false
+  })
+
   canvas.addEventListener('click', () => {
     const origin = dragOrigin
-    dragOrigin = null
     if (isTauri && origin) {
       void getCurrentWindow()
         .outerPosition()
         .then((p) => {
-          const moved = Math.abs(p.x - origin.x) > 2 || Math.abs(p.y - origin.y) > 2
-          if (!moved) pet?.playRandom(['happy', 'wave', 'jump'])
+          const delta = Math.abs(p.x - origin.x) + Math.abs(p.y - origin.y)
+          if (delta > 4) {
+            moved = true
+            behavior?.onDragEnd()
+          } else {
+            behavior?.onClick()
+          }
         })
-        .catch(() => pet?.playRandom(['happy', 'wave', 'jump']))
+        .catch(() => behavior?.onClick())
       return
     }
-    pet?.playRandom(['happy', 'wave', 'jump'])
+    behavior?.onClick()
   })
+
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     if (plugins.length < 2) {
@@ -121,11 +144,55 @@ async function boot(): Promise<void> {
     void mount(next).then(() => say(`角色：${next.name}`))
   })
 
+  // 测试/调试入口：domcheck 与控制台都能直接驱动行为（浏览器预览模式也注册）
+  Object.defineProperty(window, '__zhuochong', {
+    value: {
+      get action() {
+        return pet?.currentAction ?? ''
+      },
+      get pluginId() {
+        return current?.id ?? ''
+      },
+      get pluginName() {
+        return current?.name ?? ''
+      },
+      get sleeping() {
+        return behavior?.isSleeping ?? false
+      },
+      actions: () => Object.keys(current?.manifest.actions ?? {}),
+      get behavior() {
+        return behavior
+      },
+      get pet() {
+        return pet
+      },
+      forceSleep: () => behavior?.forceSleep() ?? false,
+      forceAmbient: () => behavior?.forceAmbient() ?? false,
+      wake: () => behavior?.onClick()
+    },
+    writable: false,
+    configurable: true
+  })
+
   if (!isTauri) return
 
-  // 位置记忆：拖动结束后落盘，避免拖动过程中频繁写文件
-  let saveTimer: number | undefined
+  // 位置记忆 + 拖拽开始检测：拖动过程中窗口位置会持续变化
+  let dragWatchdog: number | undefined
   await getCurrentWindow().onMoved(({ payload }) => {
+    if (pointerDown && !moved) {
+      moved = true
+      behavior?.onDragStart()
+    }
+    if (moved && pointerDown) {
+      // 兜底：OS 级拖动可能吞掉 pointerup，位置停止变化 450ms 即视为松手
+      window.clearTimeout(dragWatchdog)
+      dragWatchdog = window.setTimeout(() => {
+        if (moved && pointerDown) {
+          behavior?.onDragEnd()
+          pointerDown = false
+        }
+      }, 450)
+    }
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => {
       void invoke('save_position', { x: payload.x, y: payload.y })

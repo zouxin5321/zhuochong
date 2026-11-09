@@ -13,6 +13,8 @@ export class Pet {
   private current: ActionSpec | null = null
   private actionStart = 0
   private raf = 0
+  private lastRandom = ''
+  private endHandlers = new Set<() => void>()
 
   width = 0
   height = 0
@@ -44,7 +46,8 @@ export class Pet {
     this.canvas.style.width = `${this.width}px`
     this.canvas.style.height = `${this.height}px`
 
-    this.play(this.pickDefaultAction())
+    this.defaultActionName = this.pickDefaultAction()
+    this.play(this.defaultActionName)
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop)
       this.draw(now)
@@ -60,8 +63,19 @@ export class Pet {
     return this.action
   }
 
+  /** 是否正在播一次性动作（未回到默认动作）；发呆/睡眠逻辑用它避免打断 */
+  get isBusy(): boolean {
+    return this.action !== this.defaultActionName
+  }
+
   hasAction(name: string): boolean {
     return !!this.manifest.actions[name]
+  }
+
+  /** 单次动作播完（回落默认动作）时触发；返回解绑函数 */
+  onEnd(handler: () => void): () => void {
+    this.endHandlers.add(handler)
+    return () => this.endHandlers.delete(handler)
   }
 
   /** 切换动作；不存在的动作静默忽略，避免插件少定义动作就崩掉 */
@@ -73,12 +87,17 @@ export class Pet {
     this.actionStart = performance.now()
   }
 
-  /** 随机挑一个可用的互动动作，没有就用默认动作 */
+  /** 随机挑一个可用的互动动作，不连续重复；没有就用默认动作 */
   playRandom(among: string[]): void {
-    const pool = among.filter((n) => this.hasAction(n))
-    if (!pool.length) return
-    this.play(pool[Math.floor(Math.random() * pool.length)])
+    const pool = among.filter((n) => this.hasAction(n) && n !== this.lastRandom)
+    const candidates = pool.length ? pool : among.filter((n) => this.hasAction(n))
+    if (!candidates.length) return
+    const pick = candidates[Math.floor(Math.random() * candidates.length)]
+    this.lastRandom = pick
+    this.play(pick)
   }
+
+  private defaultActionName = 'idle'
 
   private pickDefaultAction(): string {
     const wanted = this.manifest.defaultAction
@@ -99,11 +118,12 @@ export class Pet {
     if (loop) {
       index %= Math.max(1, action.frames)
     } else if (index >= action.frames) {
-      // 单次动作播完：按 next → 默认动作 回落
+      // 单次动作播完：按 next → 默认动作 回落，并通知监听者（行为调度据此排下一个动作）
       const next = action.next || this.pickDefaultAction()
       if (next !== this.action) {
         this.play(next)
         index = 0
+        for (const fn of this.endHandlers) fn()
       } else {
         index = action.frames - 1
         this.actionStart = now

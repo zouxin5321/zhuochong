@@ -2,8 +2,11 @@
 
 桌面宠物平台。宿主是一个 Tauri 2 小窗口，角色以**资源包插件**形式提供：一张 PNG 帧表 + 一份 `manifest.json`，不需要写代码就能做角色。
 
+![内置角色与动作](docs/preview.png)
+
 - 透明无边框置顶窗，拖动移动、位置记忆
-- 单击互动、右键切换角色
+- **4 只内置猫**：小卓 / 小橘 / 小煤 / 三花，右键切换
+- **互动**：单击随机动作（翻滚、跳跃、蠕动、爬行、挥手）、双击转圈圈、连点 4 下头晕、发呆自己玩、2 分钟不理它就睡觉、拎起来会挣扎
 - 托盘菜单：显示/隐藏、打开插件目录、退出
 - 插件零执行：宿主只读文件，不运行插件代码
 
@@ -47,12 +50,13 @@ npm run verify:app     # 插件扫描、精灵加载、窗口自适应、托盘�
 1. 复制 `examples/hello-pet/`，改 `id` / `name`；
 2. 准备一张 RGBA PNG 帧表（尺寸 = `cellWidth × columns` × `cellHeight × rows`）；
 3. 在 `actions` 里定义 `idle`（必需）与可选动作；
-4. 把整个文件夹放到插件目录，右键切换角色。
+4. 想要进阶互动就加 `behavior` 块（单击池、双击、连点、睡眠，见插件规范）；
+5. 把整个文件夹放到插件目录，右键切换角色。
 
-完整字段说明见 [docs/PLUGIN_SPEC.md](docs/PLUGIN_SPEC.md)。用内置角色改色：
+完整字段说明见 [docs/PLUGIN_SPEC.md](docs/PLUGIN_SPEC.md)。想改内置猫的配色或加新动作：
 
 ```bash
-# 修改 scripts/gen-sprites.mjs 里的颜色和帧偏移后重跑
+# 修改 scripts/gen-sprites.mjs 里的 PALETTES / ACTIONS 后重跑
 npm run sprites
 ```
 

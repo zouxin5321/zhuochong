@@ -73,8 +73,16 @@ check('页面处于 Tauri 宿主上下文（IPC 注入成功）', hasTauri === t
 
 // 插件扫描：走 Rust 侧 list_plugins，证明插件目录 + manifest 解析可用
 const plugins = await evalJs(`window.__TAURI_INTERNALS__.invoke('list_plugins').then(r => r).catch(e => ({ __err: String(e) }))`)
-const pluginOk = Array.isArray(plugins) && plugins.length > 0
-check('Rust 侧扫描到角色插件', pluginOk, JSON.stringify(plugins).slice(0, 220))
+const pluginOk = Array.isArray(plugins) && plugins.length >= 4
+check('Rust 侧扫描到全部内置角色（>=4）', pluginOk, Array.isArray(plugins) ? plugins.map((p) => p.name).join('/') : JSON.stringify(plugins).slice(0, 200))
+
+const requiredActions = ['idle', 'jump', 'drag', 'roll', 'crawl', 'wiggle', 'spin', 'sleep', 'wave', 'dizzy']
+if (Array.isArray(plugins)) {
+  for (const p of plugins) {
+    const missing = requiredActions.filter((a) => !p.manifest?.actions?.[a])
+    check(`「${p.name}」动作表齐全（10 个）`, missing.length === 0, missing.length ? `缺 ${missing.join(',')}` : requiredActions.join('/'))
+  }
+}
 
 const petInfo = await evalJs(`(() => {
   const c = document.querySelector('#pet');
@@ -117,15 +125,63 @@ await sleep(900)
 const afterClick = await digest()
 check('单击触发互动并继续绘制', clicked === 'OK' && samples.has(afterClick) === false ? true : clicked === 'OK', `digest=${afterClick}`)
 
-// 单角色时右键应给提示，而不是静默无响应
-const hint = await evalJs(`(() => {
-  document.querySelector('#pet').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-  return new Promise(r => setTimeout(() => {
-    const h = document.querySelector('#hint');
-    r({ text: h ? h.textContent : null, hidden: h ? h.classList.contains('hidden') : null });
-  }, 600));
+// ---------- 行为层：借助 window.__zhuochong 驱动 ----------
+const CLICK_POOL = ['jump', 'roll', 'spin', 'wiggle', 'wave', 'crawl']
+const debugApi = await evalJs(`typeof window.__zhuochong === 'object'`)
+check('调试入口 __zhuochong 已注册', debugApi === true)
+
+await sleep(400)
+const clickAction = await evalJs(`(() => {
+  document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
 })()`)
-check('单角色右键给出可读提示', !!hint && !!hint.text && hint.hidden === false, JSON.stringify(hint))
+check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=${clickAction}`)
+
+// 等 1.7s 清空连点窗口（1600ms），否则前面的点击会计入双击/连点判定
+await sleep(1700)
+const spinAction = await evalJs(`(() => {
+  const c = document.querySelector('#pet');
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
+})()`)
+check('双击触发转圈圈', spinAction === 'spin', `action=${spinAction}`)
+
+// 清空连点窗口后再打恰好 4 击：眩晕在第 4 击触发并清空计数，
+// 若同批次还有后续点击，会把动作洗成点击池动作（见 behavior.onClick 的计数重置）
+await sleep(1700)
+const dizzyAction = await evalJs(`(() => {
+  const c = document.querySelector('#pet');
+  for (let i = 0; i < 4; i++) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
+})()`)
+check('连点 4 次触发头晕', dizzyAction === 'dizzy', `action=${dizzyAction}`)
+
+const ambientAction = await evalJs(`window.__zhuochong.forceAmbient() ? window.__zhuochong.action : 'SKIP'`)
+check('发呆动作池可用', ['crawl', 'wiggle', 'spin'].includes(ambientAction), `action=${ambientAction}`)
+
+const sleepResult = await evalJs(`(() => {
+  const ok = window.__zhuochong.forceSleep();
+  return { ok, action: window.__zhuochong.action, sleeping: window.__zhuochong.sleeping };
+})()`)
+check('入睡后循环播放睡姿', sleepResult.ok === true && sleepResult.action === 'sleep' && sleepResult.sleeping === true, JSON.stringify(sleepResult))
+
+const wakeAction = await evalJs(`(() => {
+  window.__zhuochong.wake();
+  return { action: window.__zhuochong.action, sleeping: window.__zhuochong.sleeping };
+})()`)
+check('交互唤醒并播放跳跃', wakeAction.sleeping === false && wakeAction.action === 'jump', JSON.stringify(wakeAction))
+
+const backToIdle = await evalJs(`new Promise(r => setTimeout(() => r(window.__zhuochong.action), 1600))`)
+check('动作播完自动回落待机', backToIdle === 'idle', `action=${backToIdle}`)
+
+// 单角色时右键应给提示，而不是静默无响应（多角色时应切换成功）
+const switchResult = await evalJs(`(() => {
+  const before = window.__zhuochong.pluginId;
+  document.querySelector('#pet').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  return new Promise(r => setTimeout(() => r({ before, after: window.__zhuochong.pluginId, name: window.__zhuochong.pluginName }), 900));
+})()`)
+check('右键切换角色', !!switchResult && switchResult.after !== switchResult.before, JSON.stringify(switchResult))
 
 check('宿主内无脚本错误', errors.length === 0, errors.join(' | ').slice(0, 240))
 
