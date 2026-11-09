@@ -19,8 +19,10 @@ serde_json = "1"
 base64 = "0.22"
 
 [profile.release]
-codegen-units = 1
-lto = true
+# 全量 LTO + codegen-units=1 在 8G 内存的机器上编译 windows crate 会直接崩
+# （rustc STATUS_STACK_BUFFER_OVERRUN），这里用 thin LTO + 多 codegen unit 换稳定。
+codegen-units = 8
+lto = "thin"
 opt-level = "s"
 panic = "abort"
 strip = true

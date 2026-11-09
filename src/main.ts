@@ -78,10 +78,36 @@ async function boot(): Promise<void> {
   await mount(plugins[index])
 
   // 左键拖动窗口；单击互动；右键换下一个角色
+  // 拖动结束系统也会补一个 click，用「窗口位置是否变过」区分拖动与点击，
+  // 否则每次挪动角色都会触发一次跳跃。
+  let dragOrigin: { x: number; y: number } | null = null
+
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.button === 0 && isTauri) void getCurrentWindow().startDragging()
+    if (e.button !== 0 || !isTauri) return
+    const win = getCurrentWindow()
+    dragOrigin = null
+    void win
+      .outerPosition()
+      .then((p) => {
+        dragOrigin = { x: p.x, y: p.y }
+      })
+      .catch(() => undefined)
+    void win.startDragging()
   })
+
   canvas.addEventListener('click', () => {
+    const origin = dragOrigin
+    dragOrigin = null
+    if (isTauri && origin) {
+      void getCurrentWindow()
+        .outerPosition()
+        .then((p) => {
+          const moved = Math.abs(p.x - origin.x) > 2 || Math.abs(p.y - origin.y) > 2
+          if (!moved) pet?.playRandom(['happy', 'wave', 'jump'])
+        })
+        .catch(() => pet?.playRandom(['happy', 'wave', 'jump']))
+      return
+    }
     pet?.playRandom(['happy', 'wave', 'jump'])
   })
   canvas.addEventListener('contextmenu', (e) => {

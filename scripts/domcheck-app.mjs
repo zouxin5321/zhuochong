@@ -63,7 +63,10 @@ const check = (name, ok, extra = '') => {
 }
 
 console.log(`宿主窗口：${page.title} ${page.url}`)
-check('页面由宿主加载（localhost:1420）', /localhost:1420/.test(page.url), page.url)
+// dev 构建加载 vite 服务，release 构建加载内嵌资源（tauri://localhost 或 http://tauri.localhost）
+const fromVite = /localhost:1420/.test(page.url)
+const fromBundle = /^(tauri:\/\/localhost|https?:\/\/tauri\.localhost)/.test(page.url)
+check('页面由宿主加载（dev 走 vite / release 走内嵌资源）', fromVite || fromBundle, page.url)
 
 const hasTauri = await evalJs(`typeof window.__TAURI_INTERNALS__ === 'object'`)
 check('页面处于 Tauri 宿主上下文（IPC 注入成功）', hasTauri === true)
