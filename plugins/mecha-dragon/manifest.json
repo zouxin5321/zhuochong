@@ -1,12 +1,12 @@
 {
   "id": "mecha-dragon",
   "name": "焰甲",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "zhuochong",
-  "description": "机甲龙猫，龙角胸甲与熔岩能量纹，看着凶其实很黏人",
+  "description": "Q版机甲龙猫，头盔龙角与熔岩能量纹，看着凶其实很黏人",
   "license": "CC0-1.0",
   "minHost": "0.1.0",
-  "scale": 1.2,
+  "scale": 1,
   "defaultAction": "idle",
   "sprite": {
     "file": "spritesheet.png",

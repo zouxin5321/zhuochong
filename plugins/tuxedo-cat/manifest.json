@@ -1,12 +1,12 @@
 {
   "id": "tuxedo-cat",
   "name": "小煤",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "zhuochong",
-  "description": "肩宽方脸的燕尾服猫，尾巴细长，转圈圈最拿手",
+  "description": "方脸宽下巴的燕尾服猫，白围兜金瞳，转圈圈最拿手",
   "license": "CC0-1.0",
   "minHost": "0.1.0",
-  "scale": 1.2,
+  "scale": 1,
   "defaultAction": "idle",
   "sprite": {
     "file": "spritesheet.png",
