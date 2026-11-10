@@ -2,15 +2,15 @@
 
 **一只住在桌面上的机甲猫骑士。** 透明置顶小窗 + 帧动画桌宠平台，角色以资源包插件形式提供——一张 PNG 帧表 + 一份 `manifest.json`，不用写代码就能做角色。
 
-[![Release](https://img.shields.io/badge/download-Releases-2f7dff?logo=github)](https://github.com/<owner>/zhuochong/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4?logo=windows)](https://github.com/<owner>/zhuochong/releases)
+[![Release](https://img.shields.io/badge/download-Releases-2f7dff?logo=github)](https://github.com/zouxin5321/zhuochong/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4?logo=windows)](https://github.com/zouxin5321/zhuochong/releases)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20CC0-green)](LICENSE)
 
 ![龙焰喵演示](docs/demo.gif)
 
 ## 下载使用（30 秒上手）
 
-1. 到 [**Releases**](https://github.com/<owner>/zhuochong/releases) 下载最新绿色版 zip，解压即用（无需安装）
+1. 到 [**Releases**](https://github.com/zouxin5321/zhuochong/releases) 下载最新绿色版 zip，解压即用（无需安装）
 2. 双击 `zhuochong.exe`——龙焰喵出现在桌面上，置顶显示、不挡操作
 3. 开始玩：
 
