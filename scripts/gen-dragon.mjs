@@ -424,8 +424,43 @@ const arcSvg = (t) => {
     stroke-linecap="round" opacity="${op * 0.7}"/>`
 }
 
+/** Lv3 全屏十字剑气：劈落是天降光柱，落地爆发贯穿画面的十字光刃 */
+const ultCrossSvg = (step, pal) => {
+  if (step === 0) {
+    // 空中劈落：宽幅竖向光柱从天而降
+    return `<g fill="none" stroke-linecap="round">
+      <path d="M64 0 L64 116" stroke="${pal.core}" stroke-width="7" opacity="0.95"/>
+      <path d="M55 0 L55 112" stroke="${pal.glow}" stroke-width="2.2" opacity="0.7"/>
+      <path d="M73 4 L73 114" stroke="${pal.glow}" stroke-width="2.2" opacity="0.7"/>
+      <path d="M64 0 L64 116" stroke="${pal.hi}" stroke-width="2.4" opacity="0.9"/>
+    </g>`
+  }
+  // 落地爆发：贯穿画面的十字光刃 + 中心爆闪 + 裂地放射
+  const op = step === 1 ? 0.9 : 0.4
+  const spread = step === 1 ? 0 : 9
+  const flash = step === 1
+    ? `<circle cx="64" cy="66" r="16" fill="${pal.hi}" opacity="0.4"/>
+       <circle cx="64" cy="66" r="8" fill="#ffffff" opacity="0.55"/>`
+    : ''
+  return `<g fill="none" stroke="${pal.core}" stroke-linecap="round">
+      <path d="M64 2 L64 120" stroke-width="${step === 1 ? 8 : 4}" opacity="${op}"/>
+      <path d="M2 66 L126 66" stroke-width="${step === 1 ? 6 : 3}" opacity="${op * 0.9}"/>
+      <path d="M64 2 L64 120" stroke="${pal.hi}" stroke-width="2.4" opacity="${op}"/>
+      <path d="M2 66 L126 66" stroke="${pal.hi}" stroke-width="1.6" opacity="${op * 0.8}"/>
+      <path d="M56 8 L56 116" stroke="${pal.glow}" stroke-width="1.6" opacity="${op * 0.55}"/>
+      <path d="M72 8 L72 116" stroke="${pal.glow}" stroke-width="1.6" opacity="${op * 0.55}"/>
+      <path d="M8 58 L120 58" stroke="${pal.glow}" stroke-width="1.4" opacity="${op * 0.5}"/>
+      <path d="M8 74 L120 74" stroke="${pal.glow}" stroke-width="1.4" opacity="${op * 0.5}"/>
+      <path d="M${24 - spread} ${GROUND + 2} L${10 - spread} ${GROUND + 2}" stroke-width="2.6" opacity="${op}"/>
+      <path d="M${104 + spread} ${GROUND + 2} L${118 + spread} ${GROUND + 2}" stroke-width="2.6" opacity="${op}"/>
+      <path d="M${36 - spread} ${GROUND - 5} L${27 - spread} ${GROUND - 11}" stroke-width="1.8" opacity="${op * 0.75}"/>
+      <path d="M${92 + spread} ${GROUND - 5} L${101 + spread} ${GROUND - 11}" stroke-width="1.8" opacity="${op * 0.75}"/>
+    </g>${flash}`
+}
+
 /** 大招剑气：跃劈的纵向光刃，落地后转为裂地冲击放射（色板随连击升级） */
-const ultSvg = (step, pal = ULT_PALETTES[0]) => {
+const ultSvg = (step, pal = ULT_PALETTES[0], tier = 0) => {
+  if (tier === ULT_PALETTES.length - 1) return ultCrossSvg(step, pal)
   if (step === 0) {
     // 空中下劈：沿挥砍轨迹从右上划向左下的斜向剑气（避开脸部）
     return `<g fill="none" stroke-linecap="round">
@@ -503,7 +538,7 @@ function frameSvg(o) {
     ${glowEl}
     ${blinkEl}
     ${arc >= 0 ? arcSvg(arc) : ''}
-    ${ult >= 0 ? ultSvg(ult, pal) : ''}
+    ${ult >= 0 ? ultSvg(ult, pal, ultPal) : ''}
     ${rings >= 0 ? ringsSvg(rings, ultTint ? pal.ring : '#6ef2ff') : ''}
     ${dust >= 0 ? dustSvg(dust) : ''}
     ${embers ? embersSvg(embers) : ''}
@@ -783,9 +818,9 @@ console.log('preview -> docs/dragon-preview.png')
 const manifest = {
   id: 'dragon-flame',
   name: '龙焰喵',
-  version: '1.3.0',
+  version: '1.3.1',
   author: 'zhuochong',
-  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍（连击三段剑气升温）',
+  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍（连击三段剑气升温，满级全屏十字剑气）',
   license: 'CC0-1.0',
   minHost: '0.1.0',
   scale: 1,

@@ -1,9 +1,9 @@
 {
   "id": "dragon-flame",
   "name": "龙焰喵",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "author": "zhuochong",
-  "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍（连击三段剑气升温）",
+  "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍（连击三段剑气升温，满级全屏十字剑气）",
   "license": "CC0-1.0",
   "minHost": "0.1.0",
   "scale": 1,
@@ -172,6 +172,11 @@
         "ultimate",
         "ultimate2",
         "ultimate3"
+      ],
+      "tips": [
+        "跃焰斩",
+        "霜雷斩",
+        "烈阳斩"
       ]
     },
     "combo": {
