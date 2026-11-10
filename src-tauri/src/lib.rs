@@ -7,15 +7,20 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{LogicalSize, Manager, PhysicalPosition};
+use tauri::{LogicalSize, Manager, PhysicalPosition, PhysicalSize};
 
 const PET_LABEL: &str = "pet";
+
+/// 大招窗口放大的基准矩形：第一次放大时记录，恢复时还原，
+/// 避免多次缩放误差累积，也保证放大期间的位置变化不污染位置记忆。
+struct ZoomBase(Mutex<Option<(PhysicalPosition<i32>, PhysicalSize<u32>)>>);
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PluginInfo {
@@ -187,6 +192,59 @@ fn resize_pet(window: tauri::WebviewWindow, width: f64, height: f64) -> Result<(
         .map_err(|e| e.to_string())
 }
 
+/// 大招视觉冲击：按 factor 临时放大窗口（1.0 恢复基准矩形）。
+/// 锚定右下角——角色站在窗口底部中央，放大时向左上扩展，脚底位置不动。
+#[tauri::command]
+fn zoom_pet(
+    window: tauri::WebviewWindow,
+    base: tauri::State<ZoomBase>,
+    factor: f64,
+) -> Result<(), String> {
+    let f = factor.clamp(1.0, 3.0);
+    let mut guard = base.0.lock().map_err(|e| e.to_string())?;
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    let size = window.outer_size().map_err(|e| e.to_string())?;
+
+    if f <= 1.001 {
+        if let Some((p, s)) = guard.take() {
+            window
+                .set_size(PhysicalSize::new(s.width, s.height))
+                .map_err(|e| e.to_string())?;
+            window
+                .set_position(PhysicalPosition::new(p.x, p.y))
+                .map_err(|e| e.to_string())?;
+        }
+        return Ok(());
+    }
+
+    if guard.is_none() {
+        *guard = Some((pos, size));
+    }
+    let (bp, bs) = guard.as_ref().expect("基准矩形已记录");
+    let nw = (bs.width as f64 * f).round() as u32;
+    let nh = (bs.height as f64 * f).round() as u32;
+    let nx = bp.x + (bs.width as i32 - nw as i32);
+    let ny = bp.y + (bs.height as i32 - nh as i32);
+    window
+        .set_size(PhysicalSize::new(nw, nh))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(nx, ny))
+        .map_err(|e| e.to_string())
+}
+
+/// 系统通知（Windows 托盘气泡）：放大招时即使视线离开桌宠也能收到。
+#[tauri::command]
+fn toast(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())
+}
+
 fn open_plugins_dir(app: &tauri::AppHandle) -> Result<(), String> {
     let dir = app
         .path()
@@ -267,6 +325,8 @@ fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .manage(ZoomBase(Mutex::new(None)))
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -290,7 +350,9 @@ pub fn run() {
             get_config,
             set_config,
             save_position,
-            resize_pet
+            resize_pet,
+            zoom_pet,
+            toast
         ])
         .run(tauri::generate_context!())
         .expect("卓宠启动失败");

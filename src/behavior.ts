@@ -2,10 +2,13 @@ import type { BehaviorConfig } from './types'
 import type { Pet } from './pet'
 
 /** 与 manifest 缺省值对齐的默认行为配置（老插件没有 behavior 块也能用） */
-const DEFAULTS: Required<BehaviorConfig> = {
+const DEFAULTS: Required<Omit<BehaviorConfig, 'ultimate'>> & {
+  ultimate: { windowMs: number; actions: string[] }
+} = {
   click: ['happy', 'jump', 'wave', 'roll'],
   ambient: ['wiggle', 'crawl', 'spin'],
   doubleClick: 'spin',
+  ultimate: { windowMs: 6000, actions: ['ultimate'] },
   combo: { count: 4, windowMs: 1600, action: 'dizzy' },
   sleep: { afterMs: 120000, action: 'sleep' },
   drag: 'drag',
@@ -17,28 +20,39 @@ const DEFAULTS: Required<BehaviorConfig> = {
  * 规则（全部可被 manifest.behavior 覆盖）：
  *  - 单击：从 click 池随机（不连续重复）
  *  - 双击（<320ms 两次）：doubleClick 动作
+ *  - 大招（doubleClick 指向大招时）：windowMs 内连续双击，剑气逐级升温
+ *    （behavior.ultimate.actions 逐级换行），触发 onUltimate(level) 钩子
  *  - 连点 combo.count 次（windowMs 内）：combo.action（如头晕）
  *  - 发呆 9s 且不在动作中：从 ambient 池随机来一段
  *  - 无交互 sleep.afterMs：睡觉，任意交互唤醒并播 wake
  *  - 拖拽（拎起来）：循环 drag 动作，松手播 wake
  */
 export class Behavior {
-  private cfg: Required<BehaviorConfig>
+  private cfg: Required<Omit<BehaviorConfig, 'ultimate'>> & {
+    ultimate: { windowMs: number; actions: string[] }
+  }
   private timer: number | undefined
   private clicks: number[] = []
   private lastInteract = Date.now()
   private dragging = false
   private sleeping = false
+  private ultLevel = 0
+  private ultAt = 0
 
   constructor(
     private readonly pet: Pet,
     behavior?: BehaviorConfig,
-    private readonly hooks: { onSleep?: () => void; onWake?: () => void } = {}
+    private readonly hooks: {
+      onSleep?: () => void
+      onWake?: () => void
+      onUltimate?: (level: number, total: number) => void
+    } = {}
   ) {
     this.cfg = {
       click: behavior?.click?.length ? behavior.click : DEFAULTS.click,
       ambient: behavior?.ambient?.length ? behavior.ambient : DEFAULTS.ambient,
       doubleClick: behavior?.doubleClick ?? DEFAULTS.doubleClick,
+      ultimate: behavior?.ultimate ?? DEFAULTS.ultimate,
       combo: behavior?.combo ?? DEFAULTS.combo,
       sleep: behavior?.sleep ?? DEFAULTS.sleep,
       drag: behavior?.drag ?? DEFAULTS.drag,
@@ -91,10 +105,22 @@ export class Behavior {
       now - this.clicks[this.clicks.length - 2] < 320 &&
       this.pet.hasAction(this.cfg.doubleClick)
     ) {
-      this.pet.play(this.cfg.doubleClick)
+      this.fireUltimate(now)
       return
     }
     this.pet.playRandom(this.cfg.click)
+  }
+
+  /** 双击大招：windowMs 内连续放大招则剑气逐级升温，超时回到一级 */
+  private fireUltimate(now: number): void {
+    const ult = this.cfg.ultimate
+    const actions = ult.actions.filter((n) => this.pet.hasAction(n))
+    if (!actions.length) return
+    this.ultLevel = now - this.ultAt < ult.windowMs ? Math.min(actions.length, this.ultLevel + 1) : 1
+    this.ultAt = now
+    const name = actions[this.ultLevel - 1]
+    this.pet.play(name)
+    this.hooks.onUltimate?.(this.ultLevel, actions.length)
   }
 
   onDragStart(): void {

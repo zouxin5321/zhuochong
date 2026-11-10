@@ -46,6 +46,12 @@ export interface BehaviorConfig {
   ambient?: string[]
   /** 双击触发的动作（如转圈圈） */
   doubleClick?: string
+  /**
+   * 大招连击升级：windowMs 内连续触发双击大招，剑气逐级换色。
+   * actions[0..2] 对应 1~3 级（如 ultimate/ultimate2/ultimate3），
+   * tips 为各级招式名（托盘气泡文案用）。
+   */
+  ultimate?: { windowMs: number; actions: string[]; tips?: string[] }
   /** 连点 N 次触发的动作（如头晕） */
   combo?: { count: number; windowMs: number; action: string }
   /** 无交互多久后睡觉 */

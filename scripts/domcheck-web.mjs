@@ -127,6 +127,16 @@ const ultAction = await evalJs(`(() => {
 })()`)
 check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
 
+// 大招连击窗口（6s）内再双击：二级剑气（霜雷斩）
+await sleep(1800)
+const ult2Action = await evalJs(`(() => {
+  const c = document.querySelector('#pet');
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return window.__zhuochong.action;
+})()`)
+check('连击升级触发二级大招', ult2Action === 'ultimate2', `action=${ult2Action}`)
+
 check('无控制台错误', consoleErrors.length === 0, consoleErrors.join(' | ').slice(0, 200))
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`)

@@ -44,6 +44,16 @@ const POSE_FILES = {
 const WATERMARK = { x0: 780, y0: 918 }
 
 /**
+ * 大招剑气三级色板：连击越猛，剑气越炽（青焰 → 霜雷 → 烈阳）。
+ * 每一级对应独立的一行动作帧，前端按连击等级挑行播放。
+ */
+const ULT_PALETTES = [
+  { key: 'ultimate', tip: '跃焰斩', core: '#7df0ff', glow: '#aef7ff', hi: '#e6fdff', ring: '#6ef2ff', shard: '#7df0ff' },
+  { key: 'ultimate2', tip: '霜雷斩', core: '#8fb0ff', glow: '#c2d2ff', hi: '#eef4ff', ring: '#7d9dff', shard: '#9db9ff' },
+  { key: 'ultimate3', tip: '烈阳斩', core: '#ffcf5c', glow: '#ffe6a1', hi: '#fffbe6', ring: '#ffb444', shard: '#ffd777' }
+]
+
+/**
  * 每个姿态的「口袋」种子矩形 [x0,y0,x1,y1]：翅膀/龙伴与头盔之间残留的
  * 棋盘格（大多被翅膀挡住看不到白格），从这些种子向四周泛洪清除。
  * 泛洪只穿过浅中性色（棋盘格），遇到深色盔甲/翼膜轮廓即停。
@@ -395,11 +405,11 @@ const dustSvg = (step) => {
     .join('')}</g>`
 }
 
-/** 能量冲击环：脚下扩散的青色圆环 */
-const ringsSvg = (step) => {
+/** 能量冲击环：脚下扩散的能量环（颜色随大招等级变化） */
+const ringsSvg = (step, color = '#6ef2ff') => {
   const r = 8 + step * 11
   const op = Math.max(0.12, 0.6 - step * 0.16)
-  return `<g fill="none" stroke="#6ef2ff" stroke-linecap="round">
+  return `<g fill="none" stroke="${color}" stroke-linecap="round">
     <ellipse cx="64" cy="${GROUND}" rx="${r}" ry="${r * 0.24}" stroke-width="1.8" opacity="${op}"/>
     <ellipse cx="64" cy="${GROUND}" rx="${r * 0.62}" ry="${r * 0.15}" stroke-width="1.2" opacity="${op * 0.7}"/>
   </g>`
@@ -414,25 +424,25 @@ const arcSvg = (t) => {
     stroke-linecap="round" opacity="${op * 0.7}"/>`
 }
 
-/** 大招剑气：跃劈的纵向光刃，落地后转为裂地冲击放射 */
-const ultSvg = (step) => {
+/** 大招剑气：跃劈的纵向光刃，落地后转为裂地冲击放射（色板随连击升级） */
+const ultSvg = (step, pal = ULT_PALETTES[0]) => {
   if (step === 0) {
     // 空中下劈：沿挥砍轨迹从右上划向左下的斜向剑气（避开脸部）
     return `<g fill="none" stroke-linecap="round">
-      <path d="M112 2 Q76 30 34 96" stroke="#7df0ff" stroke-width="4.6" opacity="0.92"/>
-      <path d="M120 8 Q84 38 44 104" stroke="#aef7ff" stroke-width="2" opacity="0.7"/>
-      <path d="M104 2 Q72 28 30 88" stroke="#e6fdff" stroke-width="1.3" opacity="0.8"/>
+      <path d="M112 2 Q76 30 34 96" stroke="${pal.core}" stroke-width="4.6" opacity="0.92"/>
+      <path d="M120 8 Q84 38 44 104" stroke="${pal.glow}" stroke-width="2" opacity="0.7"/>
+      <path d="M104 2 Q72 28 30 88" stroke="${pal.hi}" stroke-width="1.3" opacity="0.8"/>
     </g>`
   }
   // 落地裂地冲击：竖向残光 + 两侧地面放射线 + 飞溅碎屑
   const op = step === 1 ? 0.7 : 0.32
   const spread = step === 1 ? 0 : 9
   const shards = step === 1
-    ? `<path d="M38 96 l-4 -9 5 2 Z" fill="#7df0ff" opacity="0.85"/>
-       <path d="M92 94 l5 -8 -6 1 Z" fill="#7df0ff" opacity="0.8"/>
-       <path d="M60 78 l-3 -8 4 3 Z" fill="#aef7ff" opacity="0.7"/>`
+    ? `<path d="M38 96 l-4 -9 5 2 Z" fill="${pal.shard}" opacity="0.85"/>
+       <path d="M92 94 l5 -8 -6 1 Z" fill="${pal.shard}" opacity="0.8"/>
+       <path d="M60 78 l-3 -8 4 3 Z" fill="${pal.glow}" opacity="0.7"/>`
     : ''
-  return `<g fill="none" stroke="#7df0ff" stroke-linecap="round">
+  return `<g fill="none" stroke="${pal.core}" stroke-linecap="round">
       <path d="M64 22 L64 112" stroke-width="${step === 1 ? 3.2 : 2}" opacity="${op}"/>
       <path d="M58 30 L64 108 L70 30" stroke-width="1.3" opacity="${op * 0.45}"/>
       <path d="M${24 - spread} ${GROUND + 2} L${10 - spread} ${GROUND + 2}" stroke-width="2.4" opacity="${op}"/>
@@ -468,9 +478,12 @@ function frameSvg(o) {
     rings = -1,
     arc = -1,
     ult = -1,
+    ultPal = 0,
+    ultTint = false,
     eyes,
     shadowRx = 26
   } = o
+  const pal = ULT_PALETTES[Math.max(0, Math.min(ULT_PALETTES.length - 1, ultPal))]
   const jumpLift = Math.min(0, dy)
   const shadowScale = Math.max(0.5, 1 + jumpLift * 0.028)
   const shadowAlpha = Math.max(0.22, 1 + jumpLift * 0.03)
@@ -490,8 +503,8 @@ function frameSvg(o) {
     ${glowEl}
     ${blinkEl}
     ${arc >= 0 ? arcSvg(arc) : ''}
-    ${ult >= 0 ? ultSvg(ult) : ''}
-    ${rings >= 0 ? ringsSvg(rings) : ''}
+    ${ult >= 0 ? ultSvg(ult, pal) : ''}
+    ${rings >= 0 ? ringsSvg(rings, ultTint ? pal.ring : '#6ef2ff') : ''}
     ${dust >= 0 ? dustSvg(dust) : ''}
     ${embers ? embersSvg(embers) : ''}
     ${zzz ? zzzSvg(zzz) : ''}
@@ -698,21 +711,22 @@ const ACTIONS = [
       { pose: idleP, rot: 9, dy: 2, sx: 0.97, shadowRx: 14 }
     ]
   },
-  // ultimate：跳跃大招劈砍（蓄力下蹲 → 腾空跃起 → 空中举剑 → 纵向剑气
-  // 劈落 → 裂地冲击波 + 尘土 → 收势）
-  {
-    key: 'ultimate',
+  // ultimate / ultimate2 / ultimate3：跳跃大招劈砍（蓄力下蹲 → 腾空跃起 →
+  // 空中举剑 → 纵向剑气劈落 → 裂地冲击波 + 尘土 → 收势）。
+  // 三级只差剑气色板与辉光强度：连击越猛，剑光越炽。
+  ...ULT_PALETTES.map((pal, tier) => ({
+    key: pal.key,
     frames: [
-      { pose: idleP, sy: 0.9, dy: 3, rot: -3, glow: 0.18, embers: 1, shadowRx: 27 },
-      { pose: idleP, sy: 0.82, dy: 5, rot: 3, glow: 0.32, embers: 2, shadowRx: 28 },
-      { pose: jumpP, dy: -14, rot: -4, glow: 0.4, sparkle: true, shadowRx: 20 },
-      { pose: airP, dy: -22, rot: -2, shadowRx: 16 },
-      { pose: airP, dy: -10, rot: 9, ult: 0, shadowRx: 19 },
-      { pose: idleP, sy: 0.84, dy: 5, ult: 1, rings: 0, dust: 0, shadowRx: 29 },
-      { pose: idleP, sy: 0.94, dy: 1, ult: 2, rings: 1, dust: 1, embers: 3, shadowRx: 27 },
-      { pose: idleP, glow: 0.16, rings: 2, dust: 2, shadowRx: 25 }
+      { pose: idleP, sy: 0.9, dy: 3, rot: -3, glow: 0.18 + tier * 0.06, embers: 1, shadowRx: 27, ultPal: tier, ultTint: true },
+      { pose: idleP, sy: 0.82, dy: 5, rot: 3, glow: 0.32 + tier * 0.08, embers: 2, shadowRx: 28, ultPal: tier, ultTint: true },
+      { pose: jumpP, dy: -14, rot: -4, glow: 0.4, sparkle: true, shadowRx: 20, ultPal: tier, ultTint: true },
+      { pose: airP, dy: -22, rot: -2, shadowRx: 16, ultPal: tier, ultTint: true },
+      { pose: airP, dy: -10, rot: 9, ult: 0, shadowRx: 19, ultPal: tier, ultTint: true },
+      { pose: idleP, sy: 0.84, dy: 5, ult: 1, rings: 0, dust: 0, shadowRx: 29, ultPal: tier, ultTint: true },
+      { pose: idleP, sy: 0.94, dy: 1, ult: 2, rings: 1, dust: 1, embers: 3, shadowRx: 27, ultPal: tier, ultTint: true },
+      { pose: idleP, glow: 0.16, rings: 2, dust: 2, shadowRx: 25, ultPal: tier, ultTint: true }
     ]
-  }
+  }))
 ]
 
 const sheetW = CELL * COLS
@@ -739,14 +753,15 @@ await sharp({
 console.log(`spritesheet -> ${OUT}/spritesheet.png (${sheetW}x${sheetH})`)
 
 // 单帧大图预览（各动作代表帧），供人工目检
+const ultRowIdx = ULT_PALETTES.map((pal) => ACTIONS.findIndex((a) => a.key === pal.key))
 const previewCells = [
   ACTIONS[0].frames[1], // idle 呼吸
-  ACTIONS[2].frames[1], // walk 迈步
   ACTIONS[4].frames[2], // slash 斩击
-  ACTIONS[5].frames[3], // power 展翼
-  ACTIONS[16].frames[3], // ultimate 空中举剑
-  ACTIONS[16].frames[5], // ultimate 裂地冲击
-  ACTIONS[10].frames[1], // sit 坐
+  ACTIONS[ultRowIdx[0]].frames[3], // ultimate 空中举剑
+  ACTIONS[ultRowIdx[0]].frames[4], // 一级剑气（青）
+  ACTIONS[ultRowIdx[1]].frames[4], // 二级剑气（蓝）
+  ACTIONS[ultRowIdx[2]].frames[4], // 三级剑气（金）
+  ACTIONS[ultRowIdx[2]].frames[5], // 三级落地冲击
   ACTIONS[13].frames[1] // sleep 睡
 ]
 const PREV = 256
@@ -768,9 +783,9 @@ console.log('preview -> docs/dragon-preview.png')
 const manifest = {
   id: 'dragon-flame',
   name: '龙焰喵',
-  version: '1.2.0',
+  version: '1.3.0',
   author: 'zhuochong',
-  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍',
+  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍（连击三段剑气升温）',
   license: 'CC0-1.0',
   minHost: '0.1.0',
   scale: 1,
@@ -799,12 +814,18 @@ const manifest = {
     sleep: { row: 13, frames: 4, fps: 2.5, loop: true },
     dizzy: { row: 14, frames: 4, fps: 6, loop: false, next: 'idle' },
     drag: { row: 15, frames: 2, fps: 8, loop: true },
-    ultimate: { row: 16, frames: 8, fps: 9, loop: false, next: 'idle' }
+    ...Object.fromEntries(
+      ULT_PALETTES.map((pal) => [
+        pal.key,
+        { row: ACTIONS.findIndex((a) => a.key === pal.key), frames: 8, fps: 9, loop: false, next: 'idle' }
+      ])
+    )
   },
   behavior: {
     click: ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 'run'],
     ambient: ['walk', 'sit', 'wiggle', 'crawl', 'blink'],
     doubleClick: 'ultimate',
+    ultimate: { windowMs: 6000, actions: ULT_PALETTES.map((p) => p.key), tips: ULT_PALETTES.map((p) => p.tip) },
     combo: { count: 4, windowMs: 1600, action: 'dizzy' },
     sleep: { afterMs: 120000, action: 'sleep' },
     drag: 'drag',

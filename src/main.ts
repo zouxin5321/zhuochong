@@ -36,6 +36,41 @@ async function say(text: string, ms = 2600): Promise<void> {
   }, ms)
 }
 
+/** 大招窗口放大倍率（按连击等级 1~3 取档） */
+const ULT_ZOOM = [1.3, 1.55, 1.8]
+let ultRestoreTimer: number | undefined
+
+async function zoomWindow(factor: number): Promise<void> {
+  if (!isTauri) return
+  await invoke('zoom_pet', { factor }).catch(() => undefined)
+}
+
+/** 大招结束（或被打断后兜底）恢复窗口与画布 */
+function endUltimate(): void {
+  window.clearTimeout(ultRestoreTimer)
+  if (!pet || pet.zoomFactor === 1) return
+  pet.setZoom(1)
+  void zoomWindow(1)
+}
+
+/** 大招：画布与窗口临时放大 + 托盘气泡播报连击等级 */
+function onUltimate(level: number, tips: string[]): void {
+  if (!pet) return
+  const factor = ULT_ZOOM[Math.min(level, ULT_ZOOM.length) - 1] ?? 1.3
+  pet.setZoom(factor)
+  void zoomWindow(factor)
+  // 大招 8 帧 @9fps ≈ 0.9s；兜底覆盖动作被打断时 zoom 不恢复的情况
+  window.clearTimeout(ultRestoreTimer)
+  ultRestoreTimer = window.setTimeout(endUltimate, 1700)
+  const tip = tips[level - 1] ?? '跃焰斩'
+  if (isTauri) {
+    void invoke('toast', {
+      title: `龙焰喵 · ${tip}`,
+      body: level >= 3 ? '剑气 Lv.MAX！连击三段，炽焰全开' : `剑气 Lv.${level} · 继续双击升温`
+    }).catch(() => undefined)
+  }
+}
+
 /** 插件清单：Tauri 下由宿主扫描；浏览器预览加载龙焰喵 */
 async function listAllPlugins(): Promise<PluginInfo[]> {
   if (isTauri) return invoke<PluginInfo[]>('list_plugins')
@@ -59,10 +94,14 @@ async function spriteOf(plugin: PluginInfo): Promise<string> {
 async function mount(plugin: PluginInfo): Promise<void> {
   behavior?.stop()
   pet?.destroy()
+  endUltimate()
 
   pet = new Pet(canvas, plugin.manifest)
   await pet.load(await spriteOf(plugin))
-  behavior = new Behavior(pet, plugin.manifest.behavior)
+  behavior = new Behavior(pet, plugin.manifest.behavior, {
+    onUltimate: (level) =>
+      onUltimate(level, plugin.manifest.behavior?.ultimate?.tips ?? ['跃焰斩'])
+  })
   behavior.start()
   await resizeWindow(pet.width, pet.height)
 

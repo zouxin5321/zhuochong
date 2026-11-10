@@ -18,6 +18,22 @@ export class Pet {
 
   width = 0
   height = 0
+  /** 大招期间的显示放大倍数（1 = 原始尺寸） */
+  private zoom = 1
+
+  /** 大招视觉冲击：临时放大绘制分辨率与 CSS 尺寸；1 恢复原状 */
+  setZoom(factor: number): void {
+    const f = Math.max(1, Math.min(3, factor))
+    this.zoom = f
+    this.canvas.width = Math.round(this.width * f * this.dpr)
+    this.canvas.height = Math.round(this.height * f * this.dpr)
+    this.canvas.style.width = `${Math.round(this.width * f)}px`
+    this.canvas.style.height = `${Math.round(this.height * f)}px`
+  }
+
+  get zoomFactor(): number {
+    return this.zoom
+  }
 
   constructor(
     private readonly canvas: HTMLCanvasElement,

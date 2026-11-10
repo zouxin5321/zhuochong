@@ -76,11 +76,11 @@ const plugins = await evalJs(`window.__TAURI_INTERNALS__.invoke('list_plugins').
 const pluginOk = Array.isArray(plugins) && plugins.length === 1 && plugins[0].id === 'dragon-flame'
 check('Rust 侧只扫描到龙焰喵', pluginOk, Array.isArray(plugins) ? plugins.map((p) => p.name).join('/') : JSON.stringify(plugins).slice(0, 200))
 
-const requiredActions = ['idle', 'blink', 'walk', 'run', 'slash', 'power', 'jump', 'roll', 'spin', 'crawl', 'sit', 'wave', 'wiggle', 'sleep', 'dizzy', 'drag', 'ultimate']
+const requiredActions = ['idle', 'blink', 'walk', 'run', 'slash', 'power', 'jump', 'roll', 'spin', 'crawl', 'sit', 'wave', 'wiggle', 'sleep', 'dizzy', 'drag', 'ultimate', 'ultimate2', 'ultimate3']
 if (Array.isArray(plugins)) {
   for (const p of plugins) {
     const missing = requiredActions.filter((a) => !p.manifest?.actions?.[a])
-    check(`「${p.name}」动作表齐全（17 个）`, missing.length === 0, missing.length ? `缺 ${missing.join(',')}` : requiredActions.join('/'))
+    check(`「${p.name}」动作表齐全（19 个）`, missing.length === 0, missing.length ? `缺 ${missing.join(',')}` : requiredActions.join('/'))
   }
 }
 
@@ -130,31 +130,54 @@ const CLICK_POOL = ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 
 const debugApi = await evalJs(`typeof window.__zhuochong === 'object'`)
 check('调试入口 __zhuochong 已注册', debugApi === true)
 
-await sleep(400)
-const clickAction = await evalJs(`(() => {
-  document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  return window.__zhuochong.action;
+// 宿主可能与真实鼠标操作并存（桌宠在桌面上运行）：
+// 1) 真实拖拽会让 behavior 卡在 dragging，先用 pointerup 复位；
+// 2) click 走异步位移检测分支，dispatch 后需短暂等待再采样动作。
+await evalJs(`(() => {
+  document.querySelector('#pet').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  return true;
 })()`)
+const clickPet = async (times) => {
+  await evalJs(`(() => {
+    const c = document.querySelector('#pet');
+    for (let i = 0; i < ${times}; i++) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  })()`)
+  await sleep(150)
+  return evalJs(`window.__zhuochong.action`)
+}
+
+await sleep(400)
+const clickAction = await clickPet(1)
 check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=${clickAction}`)
 
 // 等 1.7s 清空连点窗口（1600ms），否则前面的点击会计入双击/连点判定
 await sleep(1700)
-const ultAction = await evalJs(`(() => {
-  const c = document.querySelector('#pet');
-  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  return window.__zhuochong.action;
-})()`)
+const winBox = () => evalJs(`(() => ({ w: window.innerWidth, h: window.innerHeight }))()`)
+const baseWin = await winBox()
+const ultAction = await clickPet(2)
 check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
+await sleep(400)
+const ultWin = await winBox()
+check('大招期间窗口临时放大', ultWin.w > baseWin.w * 1.2, `base=${baseWin.w} ult=${ultWin.w}`)
+
+// 连点窗口清空后再双击一次：6s 大招连击窗口内 → 二级剑气（霜雷斩）
+await sleep(1800)
+const ult2Action = await clickPet(2)
+check('连击升级触发二级大招', ult2Action === 'ultimate2', `action=${ult2Action}`)
+await sleep(400)
+const ult2Win = await winBox()
+check('连击放大倍率逐级提升', ult2Win.w > ultWin.w, `lv1=${ultWin.w} lv2=${ult2Win.w}`)
+
+// 兜底恢复定时器（1.7s）结束后窗口应回到基准尺寸
+await sleep(2200)
+const restoredWin = await winBox()
+check('大招结束后窗口恢复原尺寸', Math.abs(restoredWin.w - baseWin.w) <= 4, `base=${baseWin.w} now=${restoredWin.w}`)
 
 // 清空连点窗口后再打恰好 4 击：眩晕在第 4 击触发并清空计数，
 // 若同批次还有后续点击，会把动作洗成点击池动作（见 behavior.onClick 的计数重置）
 await sleep(1700)
-const dizzyAction = await evalJs(`(() => {
-  const c = document.querySelector('#pet');
-  for (let i = 0; i < 4; i++) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  return window.__zhuochong.action;
-})()`)
+const dizzyAction = await clickPet(4)
 check('连点 4 次触发头晕', dizzyAction === 'dizzy', `action=${dizzyAction}`)
 
 const ambientAction = await evalJs(`window.__zhuochong.forceAmbient() ? window.__zhuochong.action : 'SKIP'`)
@@ -166,6 +189,11 @@ const sleepResult = await evalJs(`(() => {
 })()`)
 check('入睡后循环播放睡姿', sleepResult.ok === true && sleepResult.action === 'sleep' && sleepResult.sleeping === true, JSON.stringify(sleepResult))
 
+// 真实鼠标可能把 behavior 卡在 dragging，唤醒前再复位一次
+await evalJs(`(() => {
+  document.querySelector('#pet').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  return true;
+})()`)
 const wakeAction = await evalJs(`(() => {
   window.__zhuochong.wake();
   return { action: window.__zhuochong.action, sleeping: window.__zhuochong.sleeping };
