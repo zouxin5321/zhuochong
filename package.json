@@ -13,7 +13,9 @@
     "dragon": "node scripts/gen-dragon.mjs",
     "verify:web": "node scripts/domcheck-web.mjs",
     "verify:app": "node scripts/domcheck-app.mjs",
-    "verify:input": "node scripts/inputcheck.mjs"
+    "verify:input": "node scripts/inputcheck.mjs",
+    "verify:real": "node scripts/realcheck.mjs",
+    "trace:input": "node scripts/trace-input.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0"

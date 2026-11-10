@@ -861,7 +861,8 @@ const manifest = {
     ambient: ['walk', 'sit', 'wiggle', 'crawl', 'blink'],
     doubleClick: 'ultimate',
     ultimate: { windowMs: 6000, actions: ULT_PALETTES.map((p) => p.key), tips: ULT_PALETTES.map((p) => p.tip) },
-    combo: { count: 4, windowMs: 1600, action: 'dizzy' },
+    // 连点头晕：4 击、节奏慢于系统双击判定（否则会一路放大招），5 秒内累计
+    combo: { count: 4, windowMs: 5000, action: 'dizzy' },
     sleep: { afterMs: 120000, action: 'sleep' },
     drag: 'drag',
     wake: 'power'

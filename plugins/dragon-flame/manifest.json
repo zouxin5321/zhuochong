@@ -181,7 +181,7 @@
     },
     "combo": {
       "count": 4,
-      "windowMs": 1600,
+      "windowMs": 5000,
       "action": "dizzy"
     },
     "sleep": {

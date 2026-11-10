@@ -134,12 +134,15 @@ async function boot(): Promise<void> {
   // 能触发，单击池/双击大招全部失灵。
   // 正确做法：按下只记录坐标，位移超过阈值（真的在拖）才把控制权交给系统；
   // 单击/双击走纯前端同步判定，不经过任何 IPC 往返。
-  const DRAG_THRESHOLD = 6
+  const DRAG_THRESHOLD = 10
+  /** 按下后至少保持这么久才允许进入拖拽：快速双击时手指不会拖到窗口 */
+  const DRAG_HOLD_MS = 90
   let pointerDown = false
   let dragging = false
   /** 拖拽结束时系统常补发一次 click，用标记吞掉，避免误判为单击 */
   let suppressClick = false
   let downScreen = { x: 0, y: 0 }
+  let downAt = 0
   let saveTimer: number | undefined
   let dragWatchdog: number | undefined
 
@@ -171,10 +174,12 @@ async function boot(): Promise<void> {
     dragging = false
     suppressClick = false
     downScreen = { x: e.screenX, y: e.screenY }
+    downAt = performance.now()
   })
 
   canvas.addEventListener('pointermove', (e) => {
     if (!isTauri || !pointerDown || dragging) return
+    if (performance.now() - downAt < DRAG_HOLD_MS) return
     if (Math.abs(e.screenX - downScreen.x) + Math.abs(e.screenY - downScreen.y) >= DRAG_THRESHOLD) {
       beginDrag()
     }
@@ -196,6 +201,15 @@ async function boot(): Promise<void> {
       return
     }
     behavior?.onClick()
+  })
+
+  // 双击交给浏览器原生判定：跟随系统「双击速度」设置，比自定义时间窗可靠
+  canvas.addEventListener('dblclick', () => {
+    if (suppressClick) {
+      suppressClick = false
+      return
+    }
+    behavior?.onDoubleClick()
   })
 
   canvas.addEventListener('contextmenu', (e) => {
@@ -243,8 +257,6 @@ async function boot(): Promise<void> {
 
   // 位置记忆 + 拖拽收尾：OS 级拖动会吞掉 pointerup，靠「位置停止变化」判定松手
   await getCurrentWindow().onMoved(({ payload }) => {
-    // 兜底：拖动循环吞掉了 pointermove，靠窗口真的动过来补上「被拎起」状态
-    if (pointerDown && !dragging) beginDrag()
     if (dragging) {
       window.clearTimeout(dragWatchdog)
       dragWatchdog = window.setTimeout(() => endDrag(), 320)

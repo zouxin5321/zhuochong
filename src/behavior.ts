@@ -9,7 +9,7 @@ const DEFAULTS: Required<Omit<BehaviorConfig, 'ultimate'>> & {
   ambient: ['wiggle', 'crawl', 'spin'],
   doubleClick: 'spin',
   ultimate: { windowMs: 6000, actions: ['ultimate'] },
-  combo: { count: 4, windowMs: 1600, action: 'dizzy' },
+  combo: { count: 4, windowMs: 5000, action: 'dizzy' },
   sleep: { afterMs: 120000, action: 'sleep' },
   drag: 'drag',
   wake: 'jump'
@@ -27,7 +27,7 @@ const DEFAULTS: Required<Omit<BehaviorConfig, 'ultimate'>> & {
  *  - 无交互 sleep.afterMs：睡觉，任意交互唤醒并播 wake
  *  - 拖拽（拎起来）：循环 drag 动作，松手播 wake
  */
-const DOUBLE_MS = 380
+const DOUBLE_MS = 500
 const CLICK_DELAY = 180
 
 export class Behavior {
@@ -41,6 +41,8 @@ export class Behavior {
   private sleeping = false
   private ultLevel = 0
   private ultAt = 0
+  /** 上一次放大招的时间：双击由 click 配对与 dblclick 两路触发，靠它去重 */
+  private lastUltAt = 0
   /** 单击动作的延迟定时器：等一等，看是不是双击的第一击 */
   private pendingClick: number | undefined
 
@@ -111,14 +113,29 @@ export class Behavior {
       return
     }
 
+    // 兜底：浏览器没派发 dblclick（某些平台/输入法）时，靠两击时间差兜住
     const prev = this.clicks[this.clicks.length - 2]
     if (prev !== undefined && now - prev <= DOUBLE_MS && this.pet.hasAction(this.cfg.doubleClick)) {
-      this.cancelPendingClick()
       this.fireUltimate(now)
       return
     }
 
     this.scheduleClickAction()
+  }
+
+  /**
+   * 双击（DOM dblclick 触发）——以系统双击速度设置为准，比自定义时间窗口可靠。
+   * 与 click 配对兜底共用 fireUltimate，内部按 lastUltAt 去重。
+   */
+  onDoubleClick(): void {
+    this.lastInteract = Date.now()
+    if (this.dragging) return
+    if (!this.pet.hasAction(this.cfg.doubleClick)) return
+    if (this.sleeping) {
+      this.sleeping = false
+      this.hooks.onWake?.()
+    }
+    this.fireUltimate(Date.now())
   }
 
   /** 单击：延迟落地，先给双击留出判定窗口（否则双击前会闪一帧随机动作） */
@@ -140,6 +157,11 @@ export class Behavior {
     const ult = this.cfg.ultimate
     const actions = ult.actions.filter((n) => this.pet.hasAction(n))
     if (!actions.length) return
+    // 同一手势可能既命中 click 配对又收到 dblclick，400ms 内只认一次
+    if (now - this.lastUltAt < 400) return
+    this.lastUltAt = now
+    this.cancelPendingClick()
+    this.clicks = []
     this.ultLevel = now - this.ultAt < ult.windowMs ? Math.min(actions.length, this.ultLevel + 1) : 1
     this.ultAt = now
     const name = actions[this.ultLevel - 1]

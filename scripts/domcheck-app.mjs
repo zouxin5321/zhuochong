@@ -147,6 +147,19 @@ const clickPet = async (times, wait = 300) => {
   return evalJs(`window.__zhuochong.action`)
 }
 
+/** 真实浏览器双击会派发 click, click, dblclick —— 这里按同样顺序来 */
+const dblClickPet = async (wait = 160) => {
+  await evalJs(`(() => {
+    const c = document.querySelector('#pet');
+    c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    return true;
+  })()`)
+  await sleep(wait)
+  return evalJs(`window.__zhuochong.action`)
+}
+
 await sleep(400)
 const clickAction = await clickPet(1)
 check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=${clickAction}`)
@@ -155,7 +168,7 @@ check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=$
 await sleep(1700)
 const winBox = () => evalJs(`(() => ({ w: window.innerWidth, h: window.innerHeight }))()`)
 const baseWin = await winBox()
-const ultAction = await clickPet(2, 140)
+const ultAction = await dblClickPet()
 check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
 await sleep(400)
 const ultWin = await winBox()
@@ -163,7 +176,7 @@ check('大招期间窗口临时放大', ultWin.w > baseWin.w * 1.2, `base=${base
 
 // 连点窗口清空后再双击一次：6s 大招连击窗口内 → 二级剑气（霜雷斩）
 await sleep(1800)
-const ult2Action = await clickPet(2, 140)
+const ult2Action = await dblClickPet()
 check('连击升级触发二级大招', ult2Action === 'ultimate2', `action=${ult2Action}`)
 await sleep(400)
 const ult2Win = await winBox()
@@ -174,13 +187,15 @@ await sleep(2200)
 const restoredWin = await winBox()
 check('大招结束后窗口恢复原尺寸', Math.abs(restoredWin.w - baseWin.w) <= 4, `base=${baseWin.w} now=${restoredWin.w}`)
 
-// 连点头晕 = 4 击、每击间隔 420ms（越过 380ms 双击窗口，总时长 1260ms < 1600ms 连点窗口）。
+// 连点头晕 = 4 击、间隔 700ms（慢于系统双击判定 500ms，不会构成双击），5s 内累计。
 // 需先等过大招的 6s 连击窗口，否则连点判定被刻意抑制。
 await sleep(2600)
-for (let i = 0; i < 4; i++) {
+for (let i = 0; i < 3; i++) {
   await evalJs(`document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }))`)
-  await sleep(420)
+  await sleep(700)
 }
+await evalJs(`document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }))`)
+await sleep(150)
 const dizzyAction = await evalJs(`window.__zhuochong.action`)
 check('连点 4 次触发头晕', dizzyAction === 'dizzy', `action=${dizzyAction}`)
 

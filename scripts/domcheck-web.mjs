@@ -123,6 +123,7 @@ const ultAction = await evalJs(`(() => {
   const c = document.querySelector('#pet');
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
   return window.__zhuochong.action;
 })()`)
 check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
@@ -133,6 +134,7 @@ const ult2Action = await evalJs(`(() => {
   const c = document.querySelector('#pet');
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  c.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
   return window.__zhuochong.action;
 })()`)
 check('连击升级触发二级大招', ult2Action === 'ultimate2', `action=${ult2Action}`)
