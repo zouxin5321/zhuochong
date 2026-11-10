@@ -15,8 +15,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import sharp from 'sharp'
 
 /** 渲染分辨率：SVG 以矢量绘制，这里只决定栅格化密度 */
-const CELL = 128
-/** 造型坐标系恒为 64×64，所有 path 坐标都按这个写 */
+const CELL = 128/** 造型坐标系恒为 64×64，所有 path 坐标都按这个写 */
 const COLS = 8
 
 /** 每行一个动作，frames 是该行用到的帧数（<= COLS） */
@@ -129,6 +128,7 @@ const PALETTES = {
     belly: '#f0fbff',
     blush: '#ff9fb2',
     eyeColor: '#2f7dff',
+    eyeDark: '#143c8f',
     outline: '#123f5c',
     accent: '#7fd8ff',
     pattern: 'none'
@@ -141,6 +141,7 @@ const PALETTES = {
     belly: '#fff7ec',
     blush: '#ff9fb2',
     eyeColor: '#e8940f',
+    eyeDark: '#7c4a00',
     outline: '#5f3310',
     accent: '#ffd08a',
     pattern: 'stripes'
@@ -153,6 +154,7 @@ const PALETTES = {
     belly: '#f4f8ff',
     blush: '#a8bcd6',
     eyeColor: '#ffd76e',
+    eyeDark: '#8a5c06',
     outline: '#0c1520',
     accent: '#8fa6c4',
     pattern: 'tuxedo'
@@ -165,6 +167,7 @@ const PALETTES = {
     belly: '#ffffff',
     blush: '#ffb0b8',
     eyeColor: '#d98a2b',
+    eyeDark: '#7a4310',
     outline: '#4e3a28',
     accent: '#ffb066',
     pattern: 'patches'
@@ -178,6 +181,7 @@ const PALETTES = {
     belly: '#c8d6e8',
     blush: '#ff8a5c',
     eyeColor: '#ffb266',
+    eyeDark: '#8a4a1a',
     outline: '#04070c',
     accent: '#ff8f52',
     glow: '#ffb266',
@@ -372,12 +376,13 @@ function eyesSvg(style, y, spread, P, B) {
       <ellipse cx="${cx}" cy="${y - ry * 0.35}" rx="0.5" ry="${ry * 0.32}" fill="#fff6e8"/>`
     return one(lx) + one(rx)
   }
-  const openEye = (cx) => `
-      <ellipse cx="${cx}" cy="${y}" rx="${eyeRx}" ry="${eyeRy}" fill="${INK}"/>
-      <ellipse cx="${cx}" cy="${y + 0.5}" rx="${eyeRx * 0.72}" ry="${eyeRy * 0.66}" fill="${P.eyeColor}"/>
-      <ellipse cx="${cx}" cy="${y + 0.9}" rx="${eyeRx * 0.34}" ry="${eyeRy * 0.34}" fill="${INK}"/>
-      <circle cx="${cx - 1.2}" cy="${y - 1.9}" r="1.5" fill="#ffffff"/>
-      <circle cx="${cx + 1.2}" cy="${y + 1.9}" r="0.75" fill="#ffffff" opacity="0.9"/>`
+  const openEye = (cx, s = 1) => `
+      <ellipse cx="${cx}" cy="${y}" rx="${eyeRx * s}" ry="${eyeRy * s}" fill="${INK}"/>
+      <ellipse cx="${cx}" cy="${y + 0.5}" rx="${eyeRx * 0.72 * s}" ry="${eyeRy * 0.66 * s}" fill="url(#irisG)"/>
+      <ellipse cx="${cx}" cy="${y + 1.6}" rx="${eyeRx * 0.34 * s}" ry="${eyeRy * 0.22 * s}" fill="${P.eyeDark}" opacity="0.7"/>
+      <ellipse cx="${cx}" cy="${y + eyeRy * s * 0.52}" rx="${eyeRx * 0.5 * s}" ry="${eyeRy * 0.18 * s}" fill="#ffffff" opacity="0.3"/>
+      <circle cx="${cx - 1.2 * s}" cy="${y - 1.9 * s}" r="${1.5 * s}" fill="#ffffff"/>
+      <circle cx="${cx + 1.2 * s}" cy="${y + 1.9 * s}" r="${0.75 * s}" fill="#ffffff" opacity="0.9"/>`
   switch (style) {
     case 'blink':
       return `<path d="M${lx - eyeRx} ${y + 0.2} Q${lx} ${y + 2.4} ${lx + eyeRx} ${y + 0.2}" stroke="${INK}" stroke-width="2" fill="none" stroke-linecap="round"/>
@@ -392,10 +397,7 @@ function eyesSvg(style, y, spread, P, B) {
       return `<path d="M${lx - 3} ${y - 1.4} a3.2 3.2 0 1 0 5.2 2.8" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
               <path d="M${rx - 3} ${y - 1.4} a3.2 3.2 0 1 0 5.2 2.8" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`
     case 'wide':
-      return openEye(lx).replace(/rx="[\d.]+" ry="[\d.]+"/, `rx="${eyeRx + 0.9}" ry="${eyeRy + 1}"`) +
-        `<ellipse cx="${lx}" cy="${y + 0.5}" rx="${eyeRx * 0.72}" ry="${eyeRy * 0.66}" fill="${P.eyeColor}"/>` +
-        openEye(rx).replace(/rx="[\d.]+" ry="[\d.]+"/, `rx="${eyeRx + 0.9}" ry="${eyeRy + 1}"`) +
-        `<ellipse cx="${rx}" cy="${y + 0.5}" rx="${eyeRx * 0.72}" ry="${eyeRy * 0.66}" fill="${P.eyeColor}"/>`
+      return openEye(lx, 1.18) + openEye(rx, 1.18)
     default:
       return openEye(lx) + openEye(rx)
   }
@@ -460,12 +462,19 @@ function starsSvg(step) {
 /** 渐变与裁剪定义：每个角色一套明暗，画体积全靠这里 */
 function defsSvg(P, B) {
   return `<defs>
-    <radialGradient id="bodyG" cx="0.36" cy="0.2" r="0.95">
+    <radialGradient id="bodyG" cx="0.36" cy="0.2" r="0.88">
       <stop offset="0" stop-color="${P.light}"/>
       <stop offset="0.34" stop-color="${P.body}"/>
-      <stop offset="0.72" stop-color="${P.body}"/>
-      <stop offset="1" stop-color="${P.dark}"/>
+      <stop offset="0.62" stop-color="${P.body}"/>
+      <stop offset="0.88" stop-color="${P.dark}"/>
+      <stop offset="1" stop-color="${P.shadow}"/>
     </radialGradient>
+    <linearGradient id="irisG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${P.eyeDark}"/>
+      <stop offset="0.45" stop-color="${P.eyeColor}"/>
+      <stop offset="0.8" stop-color="${P.eyeColor}"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/>
+    </linearGradient>
     <linearGradient id="earG" x1="0.25" y1="0" x2="0.75" y2="1">
       <stop offset="0" stop-color="${P.light}"/>
       <stop offset="0.55" stop-color="${P.body}"/>
@@ -473,8 +482,8 @@ function defsSvg(P, B) {
     </linearGradient>
     <linearGradient id="shadeG" x1="0" y1="0.34" x2="0" y2="1">
       <stop offset="0" stop-color="${P.shadow}" stop-opacity="0"/>
-      <stop offset="0.5" stop-color="${P.shadow}" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="${P.shadow}" stop-opacity="0.52"/>
+      <stop offset="0.45" stop-color="${P.shadow}" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="${P.shadow}" stop-opacity="0.62"/>
     </linearGradient>
     <linearGradient id="tailG" x1="0" y1="0.2" x2="1" y2="1">
       <stop offset="0" stop-color="${P.body}"/>
@@ -539,17 +548,33 @@ function tailSvg(B, P, angle) {
   </g>`
 }
 
-/** 躯干：渐变填充 + 裁剪内的遮蔽/高光/反光/颈下投影 + 轮廓与边缘光 */
+/**
+ * 伪立体倒角：把轮廓线朝背光方向平移后描粗边，在裁剪内形成背光侧厚暗弧；
+ * 再朝受光方向平移描亮边，形成受光侧反光弧。两个弧之间的「明暗交界」
+ * 给出体积转轴的错觉，是平面矢量画立体感的关键一步。
+ */
+function bevel(d, P, clipId) {
+  return `<g clip-path="url(#${clipId})">
+      <path d="${d}" fill="none" stroke="${P.shadow}" stroke-width="3" opacity="0.5" transform="translate(1.8 1.4)"/>
+      <path d="${d}" fill="none" stroke="${P.light}" stroke-width="2" opacity="0.45" transform="translate(-1.4 -1.2)"/>
+    </g>`
+}
+
+/** 躯干：渐变填充 + 裁剪内的倒角/遮蔽/高光/反光/颈下投影 + 轮廓与边缘光 */
 function torsoSvg(B, P) {
   return `
     <path d="${B.body}" fill="url(#bodyG)" stroke="${P.outline}" stroke-width="1.7" stroke-linejoin="round"/>
     <g clip-path="url(#bodyClip)">
       <rect x="0" y="0" width="64" height="64" fill="url(#shadeG)"/>
+      ${bevel(B.body, P, 'bodyClip')}
       <!-- 左上受光：三层同心椭圆叠出柔和高光 -->
       <ellipse cx="27" cy="39.5" rx="8" ry="6" fill="#ffffff" opacity="0.10"/>
       <ellipse cx="26.8" cy="39.2" rx="5" ry="3.8" fill="#ffffff" opacity="0.13"/>
+      <!-- 手臂在身体两侧的落影（环境遮蔽） -->
+      <ellipse cx="${B.arm.x + 2.2}" cy="${B.arm.y}" rx="3.4" ry="5" fill="${P.shadow}" opacity="0.24"/>
+      <ellipse cx="${64 - B.arm.x - 2.2}" cy="${B.arm.y}" rx="3.4" ry="5" fill="${P.shadow}" opacity="0.24"/>
       <!-- 颈下投影：头压在身体上的落影，把两个部件「接」在一起 -->
-      <ellipse cx="32" cy="39" rx="12.5" ry="3.4" fill="${P.shadow}" opacity="0.26"/>
+      <ellipse cx="32" cy="39" rx="12.5" ry="3.4" fill="${P.shadow}" opacity="0.3"/>
       <!-- 底部反光：把身体从地面“托”起来 -->
       <ellipse cx="32" cy="55" rx="12" ry="3.6" fill="${P.light}" opacity="0.18"/>
     </g>
@@ -599,10 +624,14 @@ function headGroup(B, P, o) {
        }`
     : ''
 
-  // 头顶绒毛感高光 + 下巴反光（都裁剪在头轮廓里）
+  // 头顶绒毛感高光 + 耳朵投影 + 倒角 + 下巴反光（都裁剪在头轮廓里）
   const headShade = `
     <g clip-path="url(#headClip)">
-      <rect x="0" y="0" width="64" height="64" fill="url(#shadeG)" opacity="0.75"/>
+      <rect x="0" y="0" width="64" height="64" fill="url(#shadeG)" opacity="0.8"/>
+      ${bevel(B.head, P, 'headClip')}
+      <!-- 耳朵压在头上的落影 -->
+      <ellipse cx="21.5" cy="14.4" rx="4.6" ry="1.9" fill="${P.shadow}" opacity="0.26"/>
+      <ellipse cx="42.5" cy="14.4" rx="4.6" ry="1.9" fill="${P.shadow}" opacity="0.26"/>
       <ellipse cx="25" cy="11" rx="10" ry="6.5" fill="#ffffff" opacity="0.20"/>
       <ellipse cx="24.6" cy="10.6" rx="6" ry="3.6" fill="#ffffff" opacity="0.26"/>
       <ellipse cx="32" cy="37.4" rx="10" ry="3" fill="${P.light}" opacity="0.16"/>
@@ -753,6 +782,9 @@ function chibiSvg(o, P, B) {
   ${defsSvg(P, B)}
   <ellipse cx="32" cy="59.6" rx="${15.5 * shadowScale}" ry="${3.4 * shadowScale}"
            fill="url(#shadowG)" opacity="${shadowAlpha}"/>
+  <!-- 接触暗核：紧贴脚下的深影，跳起时收得更小更淡 -->
+  <ellipse cx="32" cy="59.2" rx="${8.5 * shadowScale}" ry="${1.8 * shadowScale}"
+           fill="#04101d" opacity="${0.32 * shadowAlpha}"/>
   <g transform="translate(32 ${35 + dy}) rotate(${rotate}) scale(${sxw} ${sy}) translate(-32 -35)">
     ${tailSvg(B, P, tail)}
     ${torsoSvg(B, P)}
