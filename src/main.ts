@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Pet } from './pet'
 import { Behavior } from './behavior'
-import type { AppConfig, PluginInfo } from './types'
+import type { AppConfig, Manifest, PluginInfo } from './types'
 
 const canvasEl = document.querySelector<HTMLCanvasElement>('#pet')
 const hintEl = document.querySelector<HTMLDivElement>('#hint')
@@ -36,24 +36,31 @@ async function say(text: string, ms = 2600): Promise<void> {
   }, ms)
 }
 
-/** 插件清单：Tauri 下由宿主扫描；浏览器预览固定加载内置角色 */
+/** 插件清单：Tauri 下由宿主扫描；浏览器预览加载龙焰喵（+小卓备用） */
 async function listAllPlugins(): Promise<PluginInfo[]> {
   if (isTauri) return invoke<PluginInfo[]>('list_plugins')
-  const manifest = await fetch('/builtin-default/manifest.json').then((r) => r.json())
-  return [
-    {
+  const ids = ['dragon-flame', 'builtin-default']
+  const list = await Promise.all(
+    ids.map((id) =>
+      fetch(`/${id}/manifest.json`)
+        .then((r) => r.json())
+        .catch(() => null)
+    )
+  )
+  return list
+    .filter((m): m is Manifest => Boolean(m))
+    .map((manifest) => ({
       id: manifest.id,
       name: `${manifest.name}（浏览器预览）`,
       version: manifest.version,
       dir: '',
       manifest
-    }
-  ]
+    }))
 }
 
 async function spriteOf(plugin: PluginInfo): Promise<string> {
   if (isTauri) return invoke<string>('load_sprite', { pluginId: plugin.id })
-  return `/builtin-default/${plugin.manifest.sprite.file}?t=${Date.now()}`
+  return `/${plugin.id}/${plugin.manifest.sprite.file}?t=${Date.now()}`
 }
 
 async function mount(plugin: PluginInfo): Promise<void> {
@@ -82,7 +89,11 @@ async function boot(): Promise<void> {
 
   const cfg = isTauri ? await invoke<AppConfig>('get_config') : {}
   let index = plugins.findIndex((p) => p.id === cfg.activePlugin)
-  if (index < 0) index = 0
+  if (index < 0) {
+    // 无历史配置时默认龙焰喵；找不到再退回第一个
+    const preferred = plugins.findIndex((p) => p.id === 'dragon-flame')
+    index = preferred >= 0 ? preferred : 0
+  }
   await mount(plugins[index])
 
   // ---------- 交互 ----------
