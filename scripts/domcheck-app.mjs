@@ -132,18 +132,18 @@ check('调试入口 __zhuochong 已注册', debugApi === true)
 
 // 宿主可能与真实鼠标操作并存（桌宠在桌面上运行）：
 // 1) 真实拖拽会让 behavior 卡在 dragging，先用 pointerup 复位；
-// 2) click 走异步位移检测分支，dispatch 后需短暂等待再采样动作。
+// 2) 单击动作有 180ms 的「等双击」延迟，dispatch 后需等它落地再采样。
 await evalJs(`(() => {
   document.querySelector('#pet').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
   return true;
 })()`)
-const clickPet = async (times) => {
+const clickPet = async (times, wait = 300) => {
   await evalJs(`(() => {
     const c = document.querySelector('#pet');
     for (let i = 0; i < ${times}; i++) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return true;
   })()`)
-  await sleep(150)
+  await sleep(wait)
   return evalJs(`window.__zhuochong.action`)
 }
 
@@ -155,7 +155,7 @@ check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=$
 await sleep(1700)
 const winBox = () => evalJs(`(() => ({ w: window.innerWidth, h: window.innerHeight }))()`)
 const baseWin = await winBox()
-const ultAction = await clickPet(2)
+const ultAction = await clickPet(2, 140)
 check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
 await sleep(400)
 const ultWin = await winBox()
@@ -163,7 +163,7 @@ check('大招期间窗口临时放大', ultWin.w > baseWin.w * 1.2, `base=${base
 
 // 连点窗口清空后再双击一次：6s 大招连击窗口内 → 二级剑气（霜雷斩）
 await sleep(1800)
-const ult2Action = await clickPet(2)
+const ult2Action = await clickPet(2, 140)
 check('连击升级触发二级大招', ult2Action === 'ultimate2', `action=${ult2Action}`)
 await sleep(400)
 const ult2Win = await winBox()
@@ -174,10 +174,14 @@ await sleep(2200)
 const restoredWin = await winBox()
 check('大招结束后窗口恢复原尺寸', Math.abs(restoredWin.w - baseWin.w) <= 4, `base=${baseWin.w} now=${restoredWin.w}`)
 
-// 清空连点窗口后再打恰好 4 击：眩晕在第 4 击触发并清空计数，
-// 若同批次还有后续点击，会把动作洗成点击池动作（见 behavior.onClick 的计数重置）
-await sleep(1700)
-const dizzyAction = await clickPet(4)
+// 连点头晕 = 4 击、每击间隔 420ms（越过 380ms 双击窗口，总时长 1260ms < 1600ms 连点窗口）。
+// 需先等过大招的 6s 连击窗口，否则连点判定被刻意抑制。
+await sleep(2600)
+for (let i = 0; i < 4; i++) {
+  await evalJs(`document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }))`)
+  await sleep(420)
+}
+const dizzyAction = await evalJs(`window.__zhuochong.action`)
 check('连点 4 次触发头晕', dizzyAction === 'dizzy', `action=${dizzyAction}`)
 
 const ambientAction = await evalJs(`window.__zhuochong.forceAmbient() ? window.__zhuochong.action : 'SKIP'`)

@@ -113,7 +113,7 @@ check('内置角色动作表齐全（>=10 个）', Array.isArray(actions) && act
 
 const clickAction = await evalJs(`(() => {
   document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  return window.__zhuochong.action;
+  return new Promise(r => setTimeout(() => r(window.__zhuochong.action), 260));
 })()`)
 check('单击命中点击动作池', ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 'run'].includes(clickAction), `action=${clickAction}`)
 

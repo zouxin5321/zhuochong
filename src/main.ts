@@ -129,48 +129,70 @@ async function boot(): Promise<void> {
   await mount(plugins[index])
 
   // ---------- 交互 ----------
-  // 拖拽联动：按下后窗口真的移动了才算「被拎起来」（切 drag 动作），
-  // 松手播 wake；单纯点击不触发。位移判断同时挡掉拖动结束系统补发的 click。
+  // 【重要】pointerdown 里绝对不能直接 startDragging()：Windows 上它会立刻进入
+  // OS 模态拖动循环抢走鼠标，click 事件经常不再派发 —— 表现为只有拖拽和松手唤醒
+  // 能触发，单击池/双击大招全部失灵。
+  // 正确做法：按下只记录坐标，位移超过阈值（真的在拖）才把控制权交给系统；
+  // 单击/双击走纯前端同步判定，不经过任何 IPC 往返。
+  const DRAG_THRESHOLD = 6
   let pointerDown = false
-  let moved = false
-  let dragOrigin: { x: number; y: number } | null = null
+  let dragging = false
+  /** 拖拽结束时系统常补发一次 click，用标记吞掉，避免误判为单击 */
+  let suppressClick = false
+  let downScreen = { x: 0, y: 0 }
   let saveTimer: number | undefined
+  let dragWatchdog: number | undefined
+
+  const beginDrag = (): void => {
+    if (dragging) return
+    dragging = true
+    suppressClick = true
+    behavior?.onDragStart()
+    void getCurrentWindow()
+      .startDragging()
+      .catch(() => {
+        // 拖动循环没起来（权限/平台差异）：退回普通点击语义
+        dragging = false
+        suppressClick = false
+      })
+  }
+
+  const endDrag = (): void => {
+    window.clearTimeout(dragWatchdog)
+    if (!dragging) return
+    dragging = false
+    pointerDown = false
+    behavior?.onDragEnd()
+  }
 
   canvas.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || !isTauri) return
     pointerDown = true
-    moved = false
-    dragOrigin = null
-    const win = getCurrentWindow()
-    void win
-      .outerPosition()
-      .then((p) => {
-        dragOrigin = { x: p.x, y: p.y }
-      })
-      .catch(() => undefined)
-    void win.startDragging()
+    dragging = false
+    suppressClick = false
+    downScreen = { x: e.screenX, y: e.screenY }
+  })
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!isTauri || !pointerDown || dragging) return
+    if (Math.abs(e.screenX - downScreen.x) + Math.abs(e.screenY - downScreen.y) >= DRAG_THRESHOLD) {
+      beginDrag()
+    }
   })
 
   canvas.addEventListener('pointerup', () => {
-    if (moved) behavior?.onDragEnd()
+    if (dragging) endDrag()
+    pointerDown = false
+  })
+
+  canvas.addEventListener('pointercancel', () => {
+    if (dragging) endDrag()
     pointerDown = false
   })
 
   canvas.addEventListener('click', () => {
-    const origin = dragOrigin
-    if (isTauri && origin) {
-      void getCurrentWindow()
-        .outerPosition()
-        .then((p) => {
-          const delta = Math.abs(p.x - origin.x) + Math.abs(p.y - origin.y)
-          if (delta > 4) {
-            moved = true
-            behavior?.onDragEnd()
-          } else {
-            behavior?.onClick()
-          }
-        })
-        .catch(() => behavior?.onClick())
+    if (suppressClick) {
+      suppressClick = false
       return
     }
     behavior?.onClick()
@@ -219,22 +241,13 @@ async function boot(): Promise<void> {
 
   if (!isTauri) return
 
-  // 位置记忆 + 拖拽开始检测：拖动过程中窗口位置会持续变化
-  let dragWatchdog: number | undefined
+  // 位置记忆 + 拖拽收尾：OS 级拖动会吞掉 pointerup，靠「位置停止变化」判定松手
   await getCurrentWindow().onMoved(({ payload }) => {
-    if (pointerDown && !moved) {
-      moved = true
-      behavior?.onDragStart()
-    }
-    if (moved && pointerDown) {
-      // 兜底：OS 级拖动可能吞掉 pointerup，位置停止变化 450ms 即视为松手
+    // 兜底：拖动循环吞掉了 pointermove，靠窗口真的动过来补上「被拎起」状态
+    if (pointerDown && !dragging) beginDrag()
+    if (dragging) {
       window.clearTimeout(dragWatchdog)
-      dragWatchdog = window.setTimeout(() => {
-        if (moved && pointerDown) {
-          behavior?.onDragEnd()
-          pointerDown = false
-        }
-      }, 450)
+      dragWatchdog = window.setTimeout(() => endDrag(), 320)
     }
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => {

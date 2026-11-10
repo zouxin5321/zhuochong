@@ -18,15 +18,18 @@ const DEFAULTS: Required<Omit<BehaviorConfig, 'ultimate'>> & {
 /**
  * 行为调度：把「用户事件 + 时间流逝」翻译成动作。
  * 规则（全部可被 manifest.behavior 覆盖）：
- *  - 单击：从 click 池随机（不连续重复）
- *  - 双击（<320ms 两次）：doubleClick 动作
+ *  - 单击：从 click 池随机（不连续重复），延迟 CLICK_DELAY 落地给双击留判定窗口
+ *  - 双击（DOUBLE_MS 内两次）：doubleClick 动作
  *  - 大招（doubleClick 指向大招时）：windowMs 内连续双击，剑气逐级升温
  *    （behavior.ultimate.actions 逐级换行），触发 onUltimate(level) 钩子
- *  - 连点 combo.count 次（windowMs 内）：combo.action（如头晕）
+ *  - 连点 combo.count 次（windowMs 内、且不在大招连击窗口里）：combo.action（如头晕）
  *  - 发呆 9s 且不在动作中：从 ambient 池随机来一段
  *  - 无交互 sleep.afterMs：睡觉，任意交互唤醒并播 wake
  *  - 拖拽（拎起来）：循环 drag 动作，松手播 wake
  */
+const DOUBLE_MS = 380
+const CLICK_DELAY = 180
+
 export class Behavior {
   private cfg: Required<Omit<BehaviorConfig, 'ultimate'>> & {
     ultimate: { windowMs: number; actions: string[] }
@@ -38,6 +41,8 @@ export class Behavior {
   private sleeping = false
   private ultLevel = 0
   private ultAt = 0
+  /** 单击动作的延迟定时器：等一等，看是不是双击的第一击 */
+  private pendingClick: number | undefined
 
   constructor(
     private readonly pet: Pet,
@@ -68,6 +73,7 @@ export class Behavior {
   stop(): void {
     if (this.timer !== undefined) window.clearInterval(this.timer)
     this.timer = undefined
+    this.cancelPendingClick()
   }
 
   get isSleeping(): boolean {
@@ -85,6 +91,7 @@ export class Behavior {
 
     if (this.sleeping) {
       this.sleeping = false
+      this.cancelPendingClick()
       this.pet.play(this.pick(this.cfg.wake))
       this.hooks.onWake?.()
       return
@@ -95,20 +102,37 @@ export class Behavior {
     this.clicks.push(now)
 
     const combo = this.cfg.combo
-    if (combo && this.clicks.length >= combo.count && this.pet.hasAction(combo.action)) {
+    // 大招连击窗口内不判定头晕，否则「双击三次升温」会被 4 击连点抢走
+    const inUltWindow = this.ultAt > 0 && now - this.ultAt < this.cfg.ultimate.windowMs
+    if (!inUltWindow && combo && this.clicks.length >= combo.count && this.pet.hasAction(combo.action)) {
+      this.cancelPendingClick()
       this.clicks = []
       this.pet.play(combo.action)
       return
     }
-    if (
-      this.clicks.length >= 2 &&
-      now - this.clicks[this.clicks.length - 2] < 320 &&
-      this.pet.hasAction(this.cfg.doubleClick)
-    ) {
+
+    const prev = this.clicks[this.clicks.length - 2]
+    if (prev !== undefined && now - prev <= DOUBLE_MS && this.pet.hasAction(this.cfg.doubleClick)) {
+      this.cancelPendingClick()
       this.fireUltimate(now)
       return
     }
-    this.pet.playRandom(this.cfg.click)
+
+    this.scheduleClickAction()
+  }
+
+  /** 单击：延迟落地，先给双击留出判定窗口（否则双击前会闪一帧随机动作） */
+  private scheduleClickAction(): void {
+    this.cancelPendingClick()
+    this.pendingClick = window.setTimeout(() => {
+      this.pendingClick = undefined
+      if (!this.dragging && !this.sleeping) this.pet.playRandom(this.cfg.click)
+    }, CLICK_DELAY)
+  }
+
+  private cancelPendingClick(): void {
+    if (this.pendingClick !== undefined) window.clearTimeout(this.pendingClick)
+    this.pendingClick = undefined
   }
 
   /** 双击大招：windowMs 内连续放大招则剑气逐级升温，超时回到一级 */
@@ -125,6 +149,7 @@ export class Behavior {
 
   onDragStart(): void {
     this.lastInteract = Date.now()
+    this.cancelPendingClick()
     this.dragging = true
     this.sleeping = false
     if (this.pet.hasAction(this.cfg.drag)) this.pet.play(this.cfg.drag)
@@ -141,6 +166,7 @@ export class Behavior {
   forceSleep(): boolean {
     const action = this.cfg.sleep.action
     if (!this.pet.hasAction(action)) return false
+    this.cancelPendingClick()
     this.sleeping = true
     this.pet.play(action)
     this.hooks.onSleep?.()
