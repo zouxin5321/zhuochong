@@ -1,9 +1,9 @@
 {
   "id": "dragon-flame",
   "name": "龙焰喵",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "zhuochong",
-  "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力",
+  "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍",
   "license": "CC0-1.0",
   "minHost": "0.1.0",
   "scale": 1,
@@ -13,7 +13,7 @@
     "cellWidth": 128,
     "cellHeight": 128,
     "columns": 8,
-    "rows": 16
+    "rows": 17
   },
   "actions": {
     "idle": {
@@ -124,6 +124,13 @@
       "frames": 2,
       "fps": 8,
       "loop": true
+    },
+    "ultimate": {
+      "row": 16,
+      "frames": 8,
+      "fps": 9,
+      "loop": false,
+      "next": "idle"
     }
   },
   "behavior": {
@@ -144,7 +151,7 @@
       "crawl",
       "blink"
     ],
-    "doubleClick": "spin",
+    "doubleClick": "ultimate",
     "combo": {
       "count": 4,
       "windowMs": 1600,

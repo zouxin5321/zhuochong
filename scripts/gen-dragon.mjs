@@ -36,7 +36,8 @@ const POSE_FILES = {
   walk: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-28.png',
   sit: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-41.png',
   slash: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-59.png',
-  power: 'The_exact_same_chibi_armored_c_2026-11-10T04-02-10.png'
+  power: 'The_exact_same_chibi_armored_c_2026-11-10T04-02-10.png',
+  airslash: 'The_exact_same_chibi_armored_c_2026-11-10T05-12-14.png'
 }
 
 /** 右下角水印区域（x>=x0 且 y>=y0 一律透明；四个姿态角色都不会到这里） */
@@ -413,10 +414,40 @@ const arcSvg = (t) => {
     stroke-linecap="round" opacity="${op * 0.7}"/>`
 }
 
+/** 大招剑气：跃劈的纵向光刃，落地后转为裂地冲击放射 */
+const ultSvg = (step) => {
+  if (step === 0) {
+    // 空中下劈：沿挥砍轨迹从右上划向左下的斜向剑气（避开脸部）
+    return `<g fill="none" stroke-linecap="round">
+      <path d="M112 2 Q76 30 34 96" stroke="#7df0ff" stroke-width="4.6" opacity="0.92"/>
+      <path d="M120 8 Q84 38 44 104" stroke="#aef7ff" stroke-width="2" opacity="0.7"/>
+      <path d="M104 2 Q72 28 30 88" stroke="#e6fdff" stroke-width="1.3" opacity="0.8"/>
+    </g>`
+  }
+  // 落地裂地冲击：竖向残光 + 两侧地面放射线 + 飞溅碎屑
+  const op = step === 1 ? 0.7 : 0.32
+  const spread = step === 1 ? 0 : 9
+  const shards = step === 1
+    ? `<path d="M38 96 l-4 -9 5 2 Z" fill="#7df0ff" opacity="0.85"/>
+       <path d="M92 94 l5 -8 -6 1 Z" fill="#7df0ff" opacity="0.8"/>
+       <path d="M60 78 l-3 -8 4 3 Z" fill="#aef7ff" opacity="0.7"/>`
+    : ''
+  return `<g fill="none" stroke="#7df0ff" stroke-linecap="round">
+      <path d="M64 22 L64 112" stroke-width="${step === 1 ? 3.2 : 2}" opacity="${op}"/>
+      <path d="M58 30 L64 108 L70 30" stroke-width="1.3" opacity="${op * 0.45}"/>
+      <path d="M${24 - spread} ${GROUND + 2} L${10 - spread} ${GROUND + 2}" stroke-width="2.4" opacity="${op}"/>
+      <path d="M${104 + spread} ${GROUND + 2} L${118 + spread} ${GROUND + 2}" stroke-width="2.4" opacity="${op}"/>
+      <path d="M${36 - spread} ${GROUND - 5} L${27 - spread} ${GROUND - 11}" stroke-width="1.8" opacity="${op * 0.75}"/>
+      <path d="M${92 + spread} ${GROUND - 5} L${101 + spread} ${GROUND - 11}" stroke-width="1.8" opacity="${op * 0.75}"/>
+      <path d="M${14 - spread} ${GROUND - 8} L${6 - spread} ${GROUND - 14}" stroke-width="1.4" opacity="${op * 0.5}"/>
+      <path d="M${114 + spread} ${GROUND - 8} L${122 + spread} ${GROUND - 14}" stroke-width="1.4" opacity="${op * 0.5}"/>
+    </g>${shards}`
+}
+
 /**
  * 单帧合成：位图姿态放进 SVG <image> 做形变，叠加投影与特效。
  * o: { pose, dx, dy, rot, sx, sy, flip, glow, zzz, stars, embers, sparkle,
- *      blink, dust, rings, arc, shadowRx }
+ *      blink, dust, rings, arc, ult, shadowRx }
  */
 function frameSvg(o) {
   const {
@@ -436,6 +467,7 @@ function frameSvg(o) {
     dust = -1,
     rings = -1,
     arc = -1,
+    ult = -1,
     eyes,
     shadowRx = 26
   } = o
@@ -458,6 +490,7 @@ function frameSvg(o) {
     ${glowEl}
     ${blinkEl}
     ${arc >= 0 ? arcSvg(arc) : ''}
+    ${ult >= 0 ? ultSvg(ult) : ''}
     ${rings >= 0 ? ringsSvg(rings) : ''}
     ${dust >= 0 ? dustSvg(dust) : ''}
     ${embers ? embersSvg(embers) : ''}
@@ -490,6 +523,7 @@ const walkP = POSES.walk.png
 const sitP = POSES.sit.png
 const slashP = POSES.slash.png
 const powerP = POSES.power.png
+const airP = POSES.airslash.png
 
 const ACTIONS = [
   // idle：呼吸浮动 + 辉光呼吸 + 尾侧余烬
@@ -663,6 +697,21 @@ const ACTIONS = [
       { pose: idleP, rot: -9, dy: 2, sx: 1.03, shadowRx: 14 },
       { pose: idleP, rot: 9, dy: 2, sx: 0.97, shadowRx: 14 }
     ]
+  },
+  // ultimate：跳跃大招劈砍（蓄力下蹲 → 腾空跃起 → 空中举剑 → 纵向剑气
+  // 劈落 → 裂地冲击波 + 尘土 → 收势）
+  {
+    key: 'ultimate',
+    frames: [
+      { pose: idleP, sy: 0.9, dy: 3, rot: -3, glow: 0.18, embers: 1, shadowRx: 27 },
+      { pose: idleP, sy: 0.82, dy: 5, rot: 3, glow: 0.32, embers: 2, shadowRx: 28 },
+      { pose: jumpP, dy: -14, rot: -4, glow: 0.4, sparkle: true, shadowRx: 20 },
+      { pose: airP, dy: -22, rot: -2, shadowRx: 16 },
+      { pose: airP, dy: -10, rot: 9, ult: 0, shadowRx: 19 },
+      { pose: idleP, sy: 0.84, dy: 5, ult: 1, rings: 0, dust: 0, shadowRx: 29 },
+      { pose: idleP, sy: 0.94, dy: 1, ult: 2, rings: 1, dust: 1, embers: 3, shadowRx: 27 },
+      { pose: idleP, glow: 0.16, rings: 2, dust: 2, shadowRx: 25 }
+    ]
   }
 ]
 
@@ -695,6 +744,8 @@ const previewCells = [
   ACTIONS[2].frames[1], // walk 迈步
   ACTIONS[4].frames[2], // slash 斩击
   ACTIONS[5].frames[3], // power 展翼
+  ACTIONS[16].frames[3], // ultimate 空中举剑
+  ACTIONS[16].frames[5], // ultimate 裂地冲击
   ACTIONS[10].frames[1], // sit 坐
   ACTIONS[13].frames[1] // sleep 睡
 ]
@@ -717,9 +768,9 @@ console.log('preview -> docs/dragon-preview.png')
 const manifest = {
   id: 'dragon-flame',
   name: '龙焰喵',
-  version: '1.1.0',
+  version: '1.2.0',
   author: 'zhuochong',
-  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力',
+  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力，双击跃起放大招劈砍',
   license: 'CC0-1.0',
   minHost: '0.1.0',
   scale: 1,
@@ -747,12 +798,13 @@ const manifest = {
     wiggle: { row: 12, frames: 4, fps: 8, loop: false, next: 'idle' },
     sleep: { row: 13, frames: 4, fps: 2.5, loop: true },
     dizzy: { row: 14, frames: 4, fps: 6, loop: false, next: 'idle' },
-    drag: { row: 15, frames: 2, fps: 8, loop: true }
+    drag: { row: 15, frames: 2, fps: 8, loop: true },
+    ultimate: { row: 16, frames: 8, fps: 9, loop: false, next: 'idle' }
   },
   behavior: {
     click: ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 'run'],
     ambient: ['walk', 'sit', 'wiggle', 'crawl', 'blink'],
-    doubleClick: 'spin',
+    doubleClick: 'ultimate',
     combo: { count: 4, windowMs: 1600, action: 'dizzy' },
     sleep: { afterMs: 120000, action: 'sleep' },
     drag: 'drag',

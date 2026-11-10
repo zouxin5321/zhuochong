@@ -76,11 +76,11 @@ const plugins = await evalJs(`window.__TAURI_INTERNALS__.invoke('list_plugins').
 const pluginOk = Array.isArray(plugins) && plugins.length === 1 && plugins[0].id === 'dragon-flame'
 check('Rust 侧只扫描到龙焰喵', pluginOk, Array.isArray(plugins) ? plugins.map((p) => p.name).join('/') : JSON.stringify(plugins).slice(0, 200))
 
-const requiredActions = ['idle', 'blink', 'walk', 'run', 'slash', 'power', 'jump', 'roll', 'spin', 'crawl', 'sit', 'wave', 'wiggle', 'sleep', 'dizzy', 'drag']
+const requiredActions = ['idle', 'blink', 'walk', 'run', 'slash', 'power', 'jump', 'roll', 'spin', 'crawl', 'sit', 'wave', 'wiggle', 'sleep', 'dizzy', 'drag', 'ultimate']
 if (Array.isArray(plugins)) {
   for (const p of plugins) {
     const missing = requiredActions.filter((a) => !p.manifest?.actions?.[a])
-    check(`「${p.name}」动作表齐全（16 个）`, missing.length === 0, missing.length ? `缺 ${missing.join(',')}` : requiredActions.join('/'))
+    check(`「${p.name}」动作表齐全（17 个）`, missing.length === 0, missing.length ? `缺 ${missing.join(',')}` : requiredActions.join('/'))
   }
 }
 
@@ -139,13 +139,13 @@ check('单击命中点击动作池', CLICK_POOL.includes(clickAction), `action=$
 
 // 等 1.7s 清空连点窗口（1600ms），否则前面的点击会计入双击/连点判定
 await sleep(1700)
-const spinAction = await evalJs(`(() => {
+const ultAction = await evalJs(`(() => {
   const c = document.querySelector('#pet');
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   return window.__zhuochong.action;
 })()`)
-check('双击触发转圈圈', spinAction === 'spin', `action=${spinAction}`)
+check('双击触发跳跃大招劈砍', ultAction === 'ultimate', `action=${ultAction}`)
 
 // 清空连点窗口后再打恰好 4 击：眩晕在第 4 击触发并清空计数，
 // 若同批次还有后续点击，会把动作洗成点击池动作（见 behavior.onClick 的计数重置）
