@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "tauri icon assets/app-icon.png",
-    "sprites": "node scripts/gen-sprites.mjs",
+    "dragon": "node scripts/gen-dragon.mjs",
     "verify:web": "node scripts/domcheck-web.mjs",
     "verify:app": "node scripts/domcheck-app.mjs"
   },

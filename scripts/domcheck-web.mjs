@@ -115,7 +115,7 @@ const clickAction = await evalJs(`(() => {
   document.querySelector('#pet').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   return window.__zhuochong.action;
 })()`)
-check('单击命中点击动作池', ['jump', 'roll', 'spin', 'wiggle', 'wave', 'crawl'].includes(clickAction), `action=${clickAction}`)
+check('单击命中点击动作池', ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 'run'].includes(clickAction), `action=${clickAction}`)
 
 // 等 1.7s 清空连点窗口（1600ms），否则前面的点击会计入双击判定
 await sleep(1700)

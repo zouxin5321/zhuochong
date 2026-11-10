@@ -1,0 +1,160 @@
+{
+  "id": "dragon-flame",
+  "name": "龙焰喵",
+  "version": "1.1.0",
+  "author": "zhuochong",
+  "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力",
+  "license": "CC0-1.0",
+  "minHost": "0.1.0",
+  "scale": 1,
+  "defaultAction": "idle",
+  "sprite": {
+    "file": "spritesheet.png",
+    "cellWidth": 128,
+    "cellHeight": 128,
+    "columns": 8,
+    "rows": 16
+  },
+  "actions": {
+    "idle": {
+      "row": 0,
+      "frames": 4,
+      "fps": 4,
+      "loop": true
+    },
+    "blink": {
+      "row": 1,
+      "frames": 4,
+      "fps": 6,
+      "loop": false,
+      "next": "idle"
+    },
+    "walk": {
+      "row": 2,
+      "frames": 8,
+      "fps": 7,
+      "loop": false,
+      "next": "idle"
+    },
+    "run": {
+      "row": 3,
+      "frames": 6,
+      "fps": 12,
+      "loop": false,
+      "next": "idle"
+    },
+    "slash": {
+      "row": 4,
+      "frames": 6,
+      "fps": 10,
+      "loop": false,
+      "next": "idle"
+    },
+    "power": {
+      "row": 5,
+      "frames": 6,
+      "fps": 8,
+      "loop": false,
+      "next": "idle"
+    },
+    "jump": {
+      "row": 6,
+      "frames": 5,
+      "fps": 10,
+      "loop": false,
+      "next": "idle"
+    },
+    "roll": {
+      "row": 7,
+      "frames": 8,
+      "fps": 14,
+      "loop": false,
+      "next": "idle"
+    },
+    "spin": {
+      "row": 8,
+      "frames": 8,
+      "fps": 12,
+      "loop": false,
+      "next": "idle"
+    },
+    "crawl": {
+      "row": 9,
+      "frames": 4,
+      "fps": 6,
+      "loop": false,
+      "next": "idle"
+    },
+    "sit": {
+      "row": 10,
+      "frames": 4,
+      "fps": 3,
+      "loop": false,
+      "next": "idle"
+    },
+    "wave": {
+      "row": 11,
+      "frames": 4,
+      "fps": 7,
+      "loop": false,
+      "next": "idle"
+    },
+    "wiggle": {
+      "row": 12,
+      "frames": 4,
+      "fps": 8,
+      "loop": false,
+      "next": "idle"
+    },
+    "sleep": {
+      "row": 13,
+      "frames": 4,
+      "fps": 2.5,
+      "loop": true
+    },
+    "dizzy": {
+      "row": 14,
+      "frames": 4,
+      "fps": 6,
+      "loop": false,
+      "next": "idle"
+    },
+    "drag": {
+      "row": 15,
+      "frames": 2,
+      "fps": 8,
+      "loop": true
+    }
+  },
+  "behavior": {
+    "click": [
+      "jump",
+      "slash",
+      "power",
+      "roll",
+      "spin",
+      "wave",
+      "wiggle",
+      "run"
+    ],
+    "ambient": [
+      "walk",
+      "sit",
+      "wiggle",
+      "crawl",
+      "blink"
+    ],
+    "doubleClick": "spin",
+    "combo": {
+      "count": 4,
+      "windowMs": 1600,
+      "action": "dizzy"
+    },
+    "sleep": {
+      "afterMs": 120000,
+      "action": "sleep"
+    },
+    "drag": "drag",
+    "wake": "power"
+  }
+}

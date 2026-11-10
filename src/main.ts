@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Pet } from './pet'
 import { Behavior } from './behavior'
-import type { AppConfig, Manifest, PluginInfo } from './types'
+import type { AppConfig, PluginInfo } from './types'
 
 const canvasEl = document.querySelector<HTMLCanvasElement>('#pet')
 const hintEl = document.querySelector<HTMLDivElement>('#hint')
@@ -36,26 +36,19 @@ async function say(text: string, ms = 2600): Promise<void> {
   }, ms)
 }
 
-/** 插件清单：Tauri 下由宿主扫描；浏览器预览加载龙焰喵（+小卓备用） */
+/** 插件清单：Tauri 下由宿主扫描；浏览器预览加载龙焰喵 */
 async function listAllPlugins(): Promise<PluginInfo[]> {
   if (isTauri) return invoke<PluginInfo[]>('list_plugins')
-  const ids = ['dragon-flame', 'builtin-default']
-  const list = await Promise.all(
-    ids.map((id) =>
-      fetch(`/${id}/manifest.json`)
-        .then((r) => r.json())
-        .catch(() => null)
-    )
-  )
-  return list
-    .filter((m): m is Manifest => Boolean(m))
-    .map((manifest) => ({
+  const manifest = await fetch('/dragon-flame/manifest.json').then((r) => r.json())
+  return [
+    {
       id: manifest.id,
       name: `${manifest.name}（浏览器预览）`,
       version: manifest.version,
       dir: '',
       manifest
-    }))
+    }
+  ]
 }
 
 async function spriteOf(plugin: PluginInfo): Promise<string> {
@@ -147,7 +140,7 @@ async function boot(): Promise<void> {
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     if (plugins.length < 2) {
-      void say(`当前只有「${plugins[0].name}」一个角色，插件目录里再加一个就能切换`)
+      void say(`当前是「${plugins[0].name}」，把新角色文件夹放进插件目录就能切换`)
       return
     }
     index = (index + 1) % plugins.length

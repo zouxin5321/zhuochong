@@ -32,7 +32,11 @@ const POSE_FILES = {
   idle: 'Redraw_the_exact_same_chibi_ca_2026-11-10T03-03-47.png',
   jump: 'The_exact_same_chibi_armored_c_2026-11-10T03-04-55.png',
   sleep: 'The_exact_same_chibi_armored_c_2026-11-10T03-05-10.png',
-  wave: 'The_exact_same_chibi_armored_c_2026-11-10T03-05-23.png'
+  wave: 'The_exact_same_chibi_armored_c_2026-11-10T03-05-23.png',
+  walk: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-28.png',
+  sit: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-41.png',
+  slash: 'The_exact_same_chibi_armored_c_2026-11-10T04-01-59.png',
+  power: 'The_exact_same_chibi_armored_c_2026-11-10T04-02-10.png'
 }
 
 /** 右下角水印区域（x>=x0 且 y>=y0 一律透明；四个姿态角色都不会到这里） */
@@ -116,6 +120,36 @@ async function cutout(file) {
     if (x < w - 1 && bgTest(i + 1)) push(x + 1, y)
     if (y > 0 && bgTest(i - w)) push(x, y - 1)
     if (y < h - 1 && bgTest(i + w)) push(x, y + 1)
+  }
+  // 自动封闭区清除：泛洪后仍不透明的 bgLike 连通块（新姿态纯白背景里的
+  // 四肢/剑/翅膀间空隙）只要面积够大就是背景，按面积阈值移除。
+  {
+    const seen = new Uint8Array(w * h)
+    for (let i = 0; i < w * h; i++) {
+      if (seen[i]) continue
+      const o = i * ch
+      if (data[o + 3] === 0 || !isBgLike(data[o], data[o + 1], data[o + 2])) {
+        seen[i] = 1
+        continue
+      }
+      const comp = [i]
+      seen[i] = 1
+      let head = 0
+      while (head < comp.length) {
+        const j = comp[head++]
+        const x = j % w
+        const y = (j / w) | 0
+        for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) {
+          if (k < 0 || seen[k]) continue
+          const ko = k * ch
+          if (data[ko + 3] !== 0 && isBgLike(data[ko], data[ko + 1], data[ko + 2])) {
+            seen[k] = 1
+            comp.push(k)
+          }
+        }
+      }
+      if (comp.length >= 250) for (const j of comp) data[j * ch + 3] = 0
+    }
   }
   // 封闭区二次清除：翅膀/龙伴与头盔之间的「口袋」棋盘格，泛洪从边缘进不去。
   // 口袋的特征：连通块里同时有大量「白格(>=249)」和「灰格(<=228)」两种平坦色；
@@ -334,9 +368,55 @@ const sparkleSvg = () =>
      <path d="M22 34 l1 2.8 2.8 1 -2.8 1 -1 2.8 -1 -2.8 -2.8 -1 2.8 -1 Z"/>
    </g>`
 
+/** 眨眼：用暗色横椭圆盖住双眼光辉（面罩本来就是黑的，效果像闭眼） */
+const blinkSvg = (eyes, t) => {
+  if (!eyes) return ''
+  const ry = eyes.r * (0.9 - 0.5 * t)
+  return `<ellipse cx="${eyes.x}" cy="${eyes.y}" rx="${eyes.r * 3.4}" ry="${ry}"
+    fill="#04070c" opacity="${0.72 + 0.2 * t}"/>`
+}
+
+/** 落地尘土：贴地的几粒灰尘扩散淡出 */
+const dustSvg = (step) => {
+  const grains = [
+    [40, 116, 2.6],
+    [52, 119, 2.0],
+    [88, 117, 2.4],
+    [78, 120, 1.8]
+  ]
+  const spread = [0, 3, 6, 9][Math.min(step, 3)]
+  const op = [0.55, 0.4, 0.25, 0.12][Math.min(step, 3)]
+  return `<g fill="#8fa3bd">${grains
+    .map(
+      ([x, y, r], i) =>
+        `<circle cx="${x + (i % 2 ? spread : -spread)}" cy="${y - spread * 0.3}" r="${r}" opacity="${op}"/>`
+    )
+    .join('')}</g>`
+}
+
+/** 能量冲击环：脚下扩散的青色圆环 */
+const ringsSvg = (step) => {
+  const r = 8 + step * 11
+  const op = Math.max(0.12, 0.6 - step * 0.16)
+  return `<g fill="none" stroke="#6ef2ff" stroke-linecap="round">
+    <ellipse cx="64" cy="${GROUND}" rx="${r}" ry="${r * 0.24}" stroke-width="1.8" opacity="${op}"/>
+    <ellipse cx="64" cy="${GROUND}" rx="${r * 0.62}" ry="${r * 0.15}" stroke-width="1.2" opacity="${op * 0.7}"/>
+  </g>`
+}
+
+/** 剑光挥击弧：跟随挥剑节奏的青色月牙 */
+const arcSvg = (t) => {
+  const op = 0.85 - t * 0.45
+  return `<path d="M30 38 Q56 14 88 34" stroke="#7df0ff" stroke-width="${5 - t * 2}" fill="none"
+    stroke-linecap="round" opacity="${op}"/>
+    <path d="M24 46 Q54 20 94 40" stroke="#aef7ff" stroke-width="${2.4 - t}" fill="none"
+    stroke-linecap="round" opacity="${op * 0.7}"/>`
+}
+
 /**
  * 单帧合成：位图姿态放进 SVG <image> 做形变，叠加投影与特效。
- * o: { pose, dx, dy, rot, sx, sy, flip, glow, zzz, stars, embers, sparkle, shadowRx }
+ * o: { pose, dx, dy, rot, sx, sy, flip, glow, zzz, stars, embers, sparkle,
+ *      blink, dust, rings, arc, shadowRx }
  */
 function frameSvg(o) {
   const {
@@ -352,6 +432,11 @@ function frameSvg(o) {
     stars = 0,
     embers = 0,
     sparkle = false,
+    blink = false,
+    dust = -1,
+    rings = -1,
+    arc = -1,
+    eyes,
     shadowRx = 26
   } = o
   const jumpLift = Math.min(0, dy)
@@ -360,15 +445,21 @@ function frameSvg(o) {
   const sxF = flip ? -sx : sx
   const transform = `translate(${dx} ${dy}) rotate(${rot} 64 ${BODY_CY}) translate(64 ${GROUND}) scale(${sxF} ${sy}) translate(-64 ${-GROUND})`
   const img = `<image href="data:image/png;base64,${pose.toString('base64')}" x="0" y="0" width="${CELL}" height="${CELL}" transform="${transform}" image-rendering="optimizeQuality"/>`
+  const eyeInfo = eyes ?? POSES.idle.eyes
   const glowEl =
-    glow > 0 && pose === POSES.idle.png && POSES.idle.eyes
-      ? `<circle cx="${POSES.idle.eyes.x}" cy="${POSES.idle.eyes.y}" r="${POSES.idle.eyes.r * 3}" fill="#6ef2ff" opacity="${glow * 0.32}"/>`
+    glow > 0 && eyeInfo
+      ? `<circle cx="${eyeInfo.x}" cy="${eyeInfo.y}" r="${eyeInfo.r * 3}" fill="#6ef2ff" opacity="${glow * 0.32}"/>`
       : ''
+  const blinkEl = blink && eyeInfo ? blinkSvg(eyeInfo, 1) : ''
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CELL}" height="${CELL}" viewBox="0 0 ${CELL} ${CELL}">
     <ellipse cx="64" cy="${GROUND + 3}" rx="${shadowRx * shadowScale}" ry="${4.6 * shadowScale}" fill="#02080f" opacity="${0.16 * shadowAlpha}"/>
     <ellipse cx="64" cy="${GROUND + 2}" rx="${shadowRx * 0.55 * shadowScale}" ry="${2.6 * shadowScale}" fill="#02080f" opacity="${0.3 * shadowAlpha}"/>
     ${img}
     ${glowEl}
+    ${blinkEl}
+    ${arc >= 0 ? arcSvg(arc) : ''}
+    ${rings >= 0 ? ringsSvg(rings) : ''}
+    ${dust >= 0 ? dustSvg(dust) : ''}
     ${embers ? embersSvg(embers) : ''}
     ${zzz ? zzzSvg(zzz) : ''}
     ${stars ? starsSvg(stars) : ''}
@@ -395,9 +486,13 @@ const idleP = POSES.idle.png
 const jumpP = POSES.jump.png
 const waveP = POSES.wave.png
 const sleepP = POSES.sleepDim.png
+const walkP = POSES.walk.png
+const sitP = POSES.sit.png
+const slashP = POSES.slash.png
+const powerP = POSES.power.png
 
 const ACTIONS = [
-  // idle：呼吸浮动 + 眼睛辉光呼吸 + 尾侧余烬
+  // idle：呼吸浮动 + 辉光呼吸 + 尾侧余烬
   {
     key: 'idle',
     frames: [
@@ -407,16 +502,78 @@ const ACTIONS = [
       { pose: idleP, dy: 1, rot: 1, glow: 0.07, embers: 3 }
     ]
   },
+  // blink：眨眼（面罩上青瞳收暗再亮起）
+  {
+    key: 'blink',
+    frames: [
+      { pose: idleP, glow: 0.08 },
+      { pose: idleP, blink: true, glow: 0.02 },
+      { pose: idleP, blink: true, glow: 0.02 },
+      { pose: idleP, glow: 0.1 }
+    ]
+  },
+  // walk：迈步行走（步点起伏 + 轻微前倾 + 影子随步收缩）
+  {
+    key: 'walk',
+    frames: [
+      { pose: walkP, rot: -1.5, shadowRx: 25 },
+      { pose: walkP, rot: -2.5, dy: -2, dx: 1.5, shadowRx: 23 },
+      { pose: walkP, rot: -1.5, shadowRx: 25 },
+      { pose: walkP, rot: 0.5, dy: -1, dx: -1, shadowRx: 24 },
+      { pose: walkP, rot: 1.5, shadowRx: 25 },
+      { pose: walkP, rot: 2.5, dy: -2, dx: -1.5, shadowRx: 23 },
+      { pose: walkP, rot: 1.5, shadowRx: 25 },
+      { pose: walkP, rot: -0.5, dy: -1, dx: 1, shadowRx: 24 }
+    ]
+  },
+  // run：小跑（更大起伏倾斜，带星光）
+  {
+    key: 'run',
+    frames: [
+      { pose: walkP, rot: -5, dy: -2, dx: 2, shadowRx: 22 },
+      { pose: walkP, rot: -6, dy: -5, dx: 3, sparkle: true, shadowRx: 19 },
+      { pose: walkP, rot: -5, dy: -2, dx: 2, shadowRx: 22 },
+      { pose: walkP, rot: 5, dy: -2, dx: -2, shadowRx: 22 },
+      { pose: walkP, rot: 6, dy: -5, dx: -3, sparkle: true, shadowRx: 19 },
+      { pose: walkP, rot: 5, dy: -2, dx: -2, shadowRx: 22 }
+    ]
+  },
+  // slash：挥剑（蓄力下蹲 → 斩击带剑光弧 → 收势扬尘）
+  {
+    key: 'slash',
+    frames: [
+      { pose: idleP, rot: -5, sy: 0.97, shadowRx: 24 },
+      { pose: idleP, rot: -8, sy: 0.94, dy: 1, shadowRx: 25 },
+      { pose: slashP, rot: -3, dy: -3, arc: 0, shadowRx: 22 },
+      { pose: slashP, rot: 2, dy: -1, arc: 1, dust: 0, shadowRx: 24 },
+      { pose: slashP, rot: 5, arc: 2, dust: 1, shadowRx: 24 },
+      { pose: idleP, rot: 3, dy: 1, sy: 0.97, dust: 2, shadowRx: 25 }
+    ]
+  },
+  // power：展翼蓄力（下蹲 → 升腾 → 双翼全开 + 能量冲击环）
+  {
+    key: 'power',
+    frames: [
+      { pose: idleP, sy: 0.9, dy: 3, shadowRx: 27 },
+      { pose: idleP, sy: 0.96, dy: 1, glow: 0.15, shadowRx: 26 },
+      { pose: powerP, dy: -4, glow: 0.5, rings: 0, embers: 1, shadowRx: 21 },
+      { pose: powerP, dy: -6, glow: 0.4, rings: 1, embers: 2, sparkle: true, shadowRx: 19 },
+      { pose: powerP, dy: -4, glow: 0.3, rings: 2, embers: 3, shadowRx: 21 },
+      { pose: idleP, rings: 3, dust: 1, glow: 0.15, shadowRx: 25 }
+    ]
+  },
+  // jump：下蹲起跳 + 空中星光 + 落地
   {
     key: 'jump',
     frames: [
-      { pose: idleP, shadowRx: 26 },
+      { pose: idleP, sy: 0.94, dy: 2, shadowRx: 27 },
       { pose: jumpP, dy: -14, sparkle: true, shadowRx: 22 },
       { pose: jumpP, dy: -22, rot: -3, sparkle: true, shadowRx: 18 },
-      { pose: jumpP, dy: -6, shadowRx: 24 }
+      { pose: idleP, dy: -6, sy: 0.97, dust: 0, shadowRx: 24 },
+      { pose: idleP, sy: 0.94, dy: 1, dust: 2, shadowRx: 26 }
     ]
   },
-  { key: 'drag', frames: [{ pose: idleP, rot: -8, dy: 2 }, { pose: idleP, rot: 8, dy: 2 }] },
+  // roll：翻滚
   {
     key: 'roll',
     frames: [0, 45, 90, 135, 180, 225, 270, 315].map((deg) => ({
@@ -425,25 +582,7 @@ const ACTIONS = [
       dy: deg % 180 === 0 ? 0 : -2
     }))
   },
-  {
-    // 爬行：压低 + 底部锚定挤压 + 前后小幅挪动
-    key: 'crawl',
-    frames: [
-      { pose: idleP, sy: 0.74, dx: 0, shadowRx: 22 },
-      { pose: idleP, sy: 0.74, dx: 2.4, shadowRx: 22 },
-      { pose: idleP, sy: 0.74, dx: 0, shadowRx: 22 },
-      { pose: idleP, sy: 0.74, dx: -2.4, shadowRx: 22 }
-    ]
-  },
-  {
-    key: 'wiggle',
-    frames: [
-      { pose: idleP, sx: 1.1, sy: 0.92, rot: -3 },
-      { pose: idleP, sx: 0.94, sy: 1.06, rot: 3 },
-      { pose: idleP, sx: 1.1, sy: 0.92, rot: -3 },
-      { pose: idleP, sx: 0.94, sy: 1.06, rot: 3 }
-    ]
-  },
+  // spin：转圈圈
   {
     key: 'spin',
     frames: [
@@ -457,15 +596,27 @@ const ACTIONS = [
       { pose: idleP }
     ]
   },
+  // crawl：匍匐爬行
   {
-    key: 'sleep',
+    key: 'crawl',
     frames: [
-      { pose: sleepP, zzz: 1, sy: 0.99, shadowRx: 30 },
-      { pose: sleepP, zzz: 2, sy: 1.01, shadowRx: 30 },
-      { pose: sleepP, zzz: 3, sy: 0.99, shadowRx: 30 },
-      { pose: sleepP, zzz: 2, sy: 1.01, shadowRx: 30 }
+      { pose: walkP, sy: 0.72, dy: 4, dx: 0, rot: -2, shadowRx: 24 },
+      { pose: walkP, sy: 0.72, dy: 4, dx: 2.4, rot: 0, shadowRx: 24 },
+      { pose: walkP, sy: 0.72, dy: 4, dx: 0, rot: 2, shadowRx: 24 },
+      { pose: walkP, sy: 0.72, dy: 4, dx: -2.4, rot: 0, shadowRx: 24 }
     ]
   },
+  // sit：坐地休息（呼吸起伏 + 偶尔闭眼）
+  {
+    key: 'sit',
+    frames: [
+      { pose: sitP, sy: 0.99, shadowRx: 28 },
+      { pose: sitP, sy: 1.01, glow: 0.12, shadowRx: 28 },
+      { pose: sitP, sy: 0.99, blink: true, eyes: POSES.sit.eyes, shadowRx: 28 },
+      { pose: sitP, sy: 1.01, glow: 0.1, eyes: POSES.sit.eyes, shadowRx: 28 }
+    ]
+  },
+  // wave：挥手
   {
     key: 'wave',
     frames: [
@@ -475,6 +626,27 @@ const ACTIONS = [
       { pose: waveP, glow: 0.12 }
     ]
   },
+  // wiggle：扭一扭
+  {
+    key: 'wiggle',
+    frames: [
+      { pose: idleP, sx: 1.1, sy: 0.92, rot: -3 },
+      { pose: idleP, sx: 0.94, sy: 1.06, rot: 3 },
+      { pose: idleP, sx: 1.1, sy: 0.92, rot: -3 },
+      { pose: idleP, sx: 0.94, sy: 1.06, rot: 3 }
+    ]
+  },
+  // sleep：睡觉（青瞳熄灭 + zzz）
+  {
+    key: 'sleep',
+    frames: [
+      { pose: sleepP, zzz: 1, sy: 0.99, shadowRx: 30 },
+      { pose: sleepP, zzz: 2, sy: 1.01, shadowRx: 30 },
+      { pose: sleepP, zzz: 3, sy: 0.99, shadowRx: 30 },
+      { pose: sleepP, zzz: 2, sy: 1.01, shadowRx: 30 }
+    ]
+  },
+  // dizzy：头晕
   {
     key: 'dizzy',
     frames: [
@@ -482,6 +654,14 @@ const ACTIONS = [
       { pose: idleP, rot: 6, stars: 2 },
       { pose: idleP, rot: -4, stars: 3 },
       { pose: idleP, rot: 5, stars: 1 }
+    ]
+  },
+  // drag：被拎起来（悬空晃动，影子缩小）
+  {
+    key: 'drag',
+    frames: [
+      { pose: idleP, rot: -9, dy: 2, sx: 1.03, shadowRx: 14 },
+      { pose: idleP, rot: 9, dy: 2, sx: 0.97, shadowRx: 14 }
     ]
   }
 ]
@@ -509,23 +689,26 @@ await sharp({
   .toFile(join(OUT, 'spritesheet.png'))
 console.log(`spritesheet -> ${OUT}/spritesheet.png (${sheetW}x${sheetH})`)
 
-// 单帧大图预览（idle/jump/wave/sleep 各一），供人工目检
+// 单帧大图预览（各动作代表帧），供人工目检
 const previewCells = [
-  ACTIONS[0].frames[0],
-  ACTIONS[1].frames[2],
-  ACTIONS[8].frames[1],
-  ACTIONS[7].frames[1]
+  ACTIONS[0].frames[1], // idle 呼吸
+  ACTIONS[2].frames[1], // walk 迈步
+  ACTIONS[4].frames[2], // slash 斩击
+  ACTIONS[5].frames[3], // power 展翼
+  ACTIONS[10].frames[1], // sit 坐
+  ACTIONS[13].frames[1] // sleep 睡
 ]
+const PREV = 256
 const previewComps = []
 for (let i = 0; i < previewCells.length; i++) {
   const big = await sharp(
-    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 128 128">${frameSvg(previewCells[i])}</svg>`)
+    Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${PREV}" height="${PREV}" viewBox="0 0 128 128">${frameSvg(previewCells[i])}</svg>`)
   )
     .png()
     .toBuffer()
-  previewComps.push({ input: big, left: i * 384, top: 0 })
+  previewComps.push({ input: big, left: i * PREV, top: 0 })
 }
-await sharp({ create: { width: 384 * 4, height: 384, channels: 4, background: { r: 16, g: 26, b: 44, alpha: 1 } } })
+await sharp({ create: { width: PREV * previewCells.length, height: PREV, channels: 4, background: { r: 16, g: 26, b: 44, alpha: 1 } } })
   .composite(previewComps)
   .png()
   .toFile(join(ROOT, 'docs', 'dragon-preview.png'))
@@ -534,9 +717,9 @@ console.log('preview -> docs/dragon-preview.png')
 const manifest = {
   id: 'dragon-flame',
   name: '龙焰喵',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'zhuochong',
-  description: 'AI 立绘的机甲猫骑士，青焰竖瞳、背负小龙、盾剑随身，头盔上还停着一只龙伴',
+  description: 'AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力',
   license: 'CC0-1.0',
   minHost: '0.1.0',
   scale: 1,
@@ -550,24 +733,30 @@ const manifest = {
   },
   actions: {
     idle: { row: 0, frames: 4, fps: 4, loop: true },
-    jump: { row: 1, frames: 4, fps: 10, loop: false, next: 'idle' },
-    drag: { row: 2, frames: 2, fps: 8, loop: true },
-    roll: { row: 3, frames: 8, fps: 14, loop: false, next: 'idle' },
-    crawl: { row: 4, frames: 4, fps: 6, loop: false, next: 'idle' },
-    wiggle: { row: 5, frames: 4, fps: 8, loop: false, next: 'idle' },
-    spin: { row: 6, frames: 8, fps: 12, loop: false, next: 'idle' },
-    sleep: { row: 7, frames: 4, fps: 2.5, loop: true },
-    wave: { row: 8, frames: 4, fps: 7, loop: false, next: 'idle' },
-    dizzy: { row: 9, frames: 4, fps: 6, loop: false, next: 'idle' }
+    blink: { row: 1, frames: 4, fps: 6, loop: false, next: 'idle' },
+    walk: { row: 2, frames: 8, fps: 7, loop: false, next: 'idle' },
+    run: { row: 3, frames: 6, fps: 12, loop: false, next: 'idle' },
+    slash: { row: 4, frames: 6, fps: 10, loop: false, next: 'idle' },
+    power: { row: 5, frames: 6, fps: 8, loop: false, next: 'idle' },
+    jump: { row: 6, frames: 5, fps: 10, loop: false, next: 'idle' },
+    roll: { row: 7, frames: 8, fps: 14, loop: false, next: 'idle' },
+    spin: { row: 8, frames: 8, fps: 12, loop: false, next: 'idle' },
+    crawl: { row: 9, frames: 4, fps: 6, loop: false, next: 'idle' },
+    sit: { row: 10, frames: 4, fps: 3, loop: false, next: 'idle' },
+    wave: { row: 11, frames: 4, fps: 7, loop: false, next: 'idle' },
+    wiggle: { row: 12, frames: 4, fps: 8, loop: false, next: 'idle' },
+    sleep: { row: 13, frames: 4, fps: 2.5, loop: true },
+    dizzy: { row: 14, frames: 4, fps: 6, loop: false, next: 'idle' },
+    drag: { row: 15, frames: 2, fps: 8, loop: true }
   },
   behavior: {
-    click: ['jump', 'roll', 'spin', 'wiggle', 'wave', 'crawl'],
-    ambient: ['crawl', 'wiggle', 'spin'],
+    click: ['jump', 'slash', 'power', 'roll', 'spin', 'wave', 'wiggle', 'run'],
+    ambient: ['walk', 'sit', 'wiggle', 'crawl', 'blink'],
     doubleClick: 'spin',
     combo: { count: 4, windowMs: 1600, action: 'dizzy' },
     sleep: { afterMs: 120000, action: 'sleep' },
     drag: 'drag',
-    wake: 'jump'
+    wake: 'power'
   }
 }
 await writeFile(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')

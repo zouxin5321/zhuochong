@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-10",
+  "comment": "插件市场索引。提交 PR 新增条目；download 指向 Release 里的插件 zip，sha256 为该 zip 的哈希。",
+  "plugins": [
+    {
+      "id": "dragon-flame",
+      "name": "龙焰喵",
+      "version": "1.1.0",
+      "author": "zhuochong",
+      "description": "AI 立绘的机甲猫骑士：青焰竖瞳、背负小龙、盾剑随身，会行走小跑、挥剑斩击、展翼蓄力",
+      "license": "CC0-1.0",
+      "builtin": true,
+      "download": "",
+      "sha256": ""
+    }
+  ]
+}
